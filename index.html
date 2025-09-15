@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>產品掃描與紀錄</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>產品掃描與紀錄</h1>
+
+      <section class="card">
+        <h2>掃描 QR 碼</h2>
+        <div id="preview-container">
+          <video id="video" playsinline muted></video>
+          <canvas id="overlay" class="overlay"></canvas>
+        </div>
+        <div class="row">
+          <button id="startScan">開始掃描</button>
+          <button id="stopScan" disabled>停止掃描</button>
+          <button id="switchCamera" disabled>切換鏡頭</button>
+        </div>
+        <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
+      </section>
+
+      <section class="card">
+        <h2>輸入資料</h2>
+        <form id="recordForm">
+          <label>
+            產品名稱
+            <input type="text" id="productName" required placeholder="輸入或選擇產品名稱" list="productList" />
+            <datalist id="productList"></datalist>
+          </label>
+
+          <label>
+            效期
+            <input type="date" id="expiryDate" required />
+          </label>
+
+          <label>
+            批號（自動帶入，可手動修改）
+            <input type="text" id="batchNumber" required />
+          </label>
+
+          <label>
+            QR 內容（唯一本盒）
+            <input type="text" id="qrText" required readonly />
+          </label>
+
+          <div class="row">
+            <button type="submit" id="submitBtn">送出到試算表</button>
+          </div>
+          <div id="status" class="status"></div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>主檔（產品總表）</h2>
+        <p class="small">用來依 產品名稱 + 效期 自動帶入批號</p>
+        <div class="row">
+          <input type="file" id="masterCsv" accept=".csv" />
+          <button id="clearMaster" type="button">清除已載入主檔</button>
+        </div>
+        <div class="row">
+          <label class="inline">
+            Apps Script 服務網址
+            <input type="url" id="gasUrl" placeholder="https://script.google.com/macros/s/xxx/exec" />
+          </label>
+        </div>
+        <details>
+          <summary>連線測試與設定</summary>
+          <div class="row">
+            <button id="pingService" type="button">測試連線</button>
+            <span id="pingResult" class="status"></span>
+          </div>
+        </details>
+      </section>
+
+      <footer>
+        <small>建議使用 iPhone 的 Safari 開啟此頁。資料僅於送出時寫入 Google 試算表。</small>
+      </footer>
+    </main>
+
+    <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+  </html>
+
+
