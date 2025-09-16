@@ -47,9 +47,9 @@
         100% { transform: scale(1); opacity: 1; }
       }
       
-      /* AR按鈕樣式 */
-      #startAR, #stopAR {
-        background: linear-gradient(45deg, #FF9800, #FFC107);
+      /* 清除標記按鈕樣式 */
+      #clearMarkers {
+        background: linear-gradient(45deg, #f44336, #e91e63);
         color: white;
         border: none;
         padding: 10px 15px;
@@ -60,16 +60,9 @@
         transition: all 0.3s ease;
       }
       
-      #startAR:hover, #stopAR:hover {
+      #clearMarkers:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
-      }
-      
-      #startAR:disabled, #stopAR:disabled {
-        background: #ccc;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
+        box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
       }
     </style>
   </head>
@@ -89,8 +82,7 @@
           <button id="manualQR" type="button">手動輸入 QR</button>
         </div>
         <div class="row">
-          <button id="startAR" type="button">啟動AR標記</button>
-          <button id="stopAR" type="button" disabled>停止AR標記</button>
+          <button id="clearMarkers" type="button">清除所有標記</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
         
@@ -543,25 +535,31 @@
       let arMarkers = new Map(); // 儲存AR標記位置
       let isARSupported = false;
 
-      // 初始化AR功能
+      // 初始化AR功能（自動啟用）
       async function initAR() {
         try {
           if ('xr' in navigator) {
             isARSupported = await navigator.xr.isSessionSupported('immersive-ar');
             if (isARSupported) {
-              console.log('AR功能已啟用');
-              setStatus('AR標記功能已啟用', 'success');
+              console.log('AR功能已自動啟用');
+              setStatus('AR標記功能已自動啟用', 'success');
+              // 自動啟動AR會話
+              await startARSession();
             } else {
               console.log('AR功能不支援，使用Canvas標記');
-              setStatus('AR功能不支援，使用Canvas標記', 'info');
+              setStatus('Canvas標記功能已啟用', 'info');
             }
+          } else {
+            console.log('WebXR不支援，使用Canvas標記');
+            setStatus('Canvas標記功能已啟用', 'info');
           }
         } catch (error) {
-          console.log('AR初始化失敗:', error);
+          console.log('AR初始化失敗，使用Canvas標記:', error);
+          setStatus('Canvas標記功能已啟用', 'info');
         }
       }
 
-      // 使用原生API標記已掃描的QR碼（AR功能）
+      // 使用原生API標記已掃描的QR碼（直接在掃描畫面覆蓋）
       async function markQRCodeAsScanned(result) {
         try {
           const qrText = result.data;
@@ -572,15 +570,15 @@
           
           const qrNumber = match[1];
           
+          // 直接在掃描畫面中覆蓋標記（不依賴AR會話）
+          createCanvasMarker(result, qrNumber);
+          
+          // 如果AR功能可用，也創建AR標記
           if (isARSupported && arSession) {
-            // 使用WebXR AR標記
             await createARMarker(result, qrNumber);
-          } else {
-            // 使用Canvas標記
-            createCanvasMarker(result, qrNumber);
           }
         } catch (error) {
-          console.log('AR標記功能不可用:', error);
+          console.log('標記功能錯誤:', error);
           // 降級到Canvas標記
           createCanvasMarker(result, qrNumber);
         }
@@ -672,51 +670,57 @@
         return marker;
       }
 
-      // 創建Canvas標記（降級方案）
+      // 創建Canvas標記（直接在掃描畫面覆蓋）
       function createCanvasMarker(result, qrNumber) {
         const canvas = document.getElementById('overlay');
         if (canvas && result.location) {
           const ctx = canvas.getContext('2d');
           const rect = result.location;
           
+          // 繪製半透明背景覆蓋整個QR碼
+          ctx.fillStyle = 'rgba(255, 152, 0, 0.4)';
+          ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+          
           // 繪製橙色圓圈標記（類似圖中的標記）
           ctx.strokeStyle = '#FF9800';
-          ctx.fillStyle = 'rgba(255, 152, 0, 0.3)';
+          ctx.fillStyle = 'rgba(255, 152, 0, 0.2)';
           ctx.lineWidth = 4;
           ctx.beginPath();
-          ctx.arc(rect.x + rect.width/2, rect.y + rect.height/2, Math.max(rect.width, rect.height)/2 + 15, 0, 2 * Math.PI);
+          ctx.arc(rect.x + rect.width/2, rect.y + rect.height/2, Math.max(rect.width, rect.height)/2 + 10, 0, 2 * Math.PI);
           ctx.fill();
           ctx.stroke();
           
           // 繪製"✓"標記
           ctx.fillStyle = '#FF9800';
-          ctx.font = 'bold 24px Arial';
+          ctx.font = 'bold 28px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText('✓', rect.x + rect.width/2, rect.y + rect.height/2 + 8);
+          ctx.fillText('✓', rect.x + rect.width/2, rect.y + rect.height/2 + 10);
           
           // 繪製QR碼編號
-          ctx.font = 'bold 12px Arial';
-          ctx.fillText(qrNumber, rect.x + rect.width/2, rect.y + rect.height/2 + 25);
+          ctx.font = 'bold 14px Arial';
+          ctx.fillText(qrNumber, rect.x + rect.width/2, rect.y + rect.height/2 + 30);
           
           // 標記會持續顯示，直到頁面重新整理
           console.log(`Canvas標記已創建: ${qrNumber}`);
         }
       }
 
-      // 啟動AR會話
+      // 啟動AR會話（自動啟動）
       async function startARSession() {
         try {
           if (isARSupported) {
-            arSession = await navigator.xr.requestSession('immersive-ar');
-            setStatus('AR會話已啟動', 'success');
+            arSession = await navigator.xr.requestSession('immersive-ar', {
+              requiredFeatures: ['local'],
+              optionalFeatures: ['hit-test']
+            });
+            console.log('AR會話已自動啟動');
             return true;
           } else {
-            setStatus('AR功能不支援', 'warning');
+            console.log('AR功能不支援，使用Canvas標記');
             return false;
           }
         } catch (error) {
-          console.error('啟動AR會話失敗:', error);
-          setStatus('AR會話啟動失敗', 'error');
+          console.error('啟動AR會話失敗，使用Canvas標記:', error);
           return false;
         }
       }
@@ -729,6 +733,21 @@
           arMarkers.clear();
           setStatus('AR會話已停止', 'info');
         }
+      }
+
+      // 清除所有標記
+      function clearAllMarkers() {
+        // 清除Canvas標記
+        const canvas = document.getElementById('overlay');
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // 清除AR標記
+        arMarkers.clear();
+        
+        setStatus('所有標記已清除', 'info');
       }
 
       // 更新掃描記錄列表
@@ -792,7 +811,7 @@
         document.getElementById('startScan').disabled = false;
         document.getElementById('stopScan').disabled = true;
         
-        setStatus('QR 掃描器已停止', 'info');
+        setStatus('QR 掃描器已停止，已掃描的標記仍會顯示', 'info');
       }
 
       // 手動輸入 QR 碼
@@ -969,24 +988,10 @@
           manualQRBtn.addEventListener('click', manualQRInput);
         }
 
-        // AR標記按鈕
-        const startARBtn = document.getElementById('startAR');
-        const stopARBtn = document.getElementById('stopAR');
-        if (startARBtn) {
-          startARBtn.addEventListener('click', async function() {
-            const success = await startARSession();
-            if (success) {
-              startARBtn.disabled = true;
-              stopARBtn.disabled = false;
-            }
-          });
-        }
-        if (stopARBtn) {
-          stopARBtn.addEventListener('click', function() {
-            stopARSession();
-            startARBtn.disabled = false;
-            stopARBtn.disabled = true;
-          });
+        // 清除標記按鈕
+        const clearMarkersBtn = document.getElementById('clearMarkers');
+        if (clearMarkersBtn) {
+          clearMarkersBtn.addEventListener('click', clearAllMarkers);
         }
 
         // 表單提交事件
