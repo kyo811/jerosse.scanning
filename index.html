@@ -650,42 +650,33 @@
         setStatus(`送出中... (${qrCodes.length} 筆記錄)`, 'info');
         
         try {
-          let successCount = 0;
-          let errorCount = 0;
+          // 準備批量記錄
+          const records = qrCodes.map(qrCode => ({
+            productName: productName.trim(),
+            expiryDate: expiryDate.trim(),
+            batchNumber: batchNumber.trim(),
+            qrText: qrCode, // 單一QR碼
+            staffName: staffName.trim(),
+            timestamp: new Date().toISOString(),
+          }));
           
-          // 為每個QR碼創建一筆記錄
-          for (const qrCode of qrCodes) {
-            const payload = {
-              productName: productName.trim(),
-              expiryDate: expiryDate.trim(),
-              batchNumber: batchNumber.trim(),
-              qrText: qrCode, // 單一QR碼
-              staffName: staffName.trim(),
-              timestamp: new Date().toISOString(),
-            };
-            
-            // 調試：確認QR碼數字格式
-            console.log('提交的QR碼:', payload.qrText);
-            console.log('QR碼類型:', typeof payload.qrText);
+          // 調試：確認批量記錄
+          console.log('批量提交記錄:', records);
+          console.log('記錄數量:', records.length);
 
-            const response = await fetch(gasUrl, {
-              method: 'POST',
-              // 使用簡單請求以避開 Apps Script 的 CORS 預檢
-              headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-              body: JSON.stringify({ action: 'append', data: payload }),
-            });
-            
-            const data = await response.json();
-            
-            if (data && data.ok) {
-              successCount++;
-            } else {
-              errorCount++;
-              console.error(`QR碼 ${qrCode} 寫入失敗:`, data);
-            }
-          }
+          const response = await fetch(gasUrl, {
+            method: 'POST',
+            // 使用簡單請求以避開 Apps Script 的 CORS 預檢
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: JSON.stringify({ action: 'appendBatch', records: records }),
+          });
           
-          if (successCount > 0) {
+          const data = await response.json();
+          
+          if (data && data.ok && data.results) {
+            const successCount = data.results.filter(r => r.ok).length;
+            const errorCount = data.results.filter(r => !r.ok).length;
+            
             setStatus(`已成功寫入 ${successCount} 筆記錄${errorCount > 0 ? `，${errorCount} 筆失敗` : ''}`, 'success');
             
             // 清空表單
@@ -705,7 +696,7 @@
             batchMode = false;
             
           } else {
-            setStatus(`所有記錄寫入失敗 (${errorCount} 筆)`, 'error');
+            setStatus(`批量寫入失敗：${(data && data.error) || '未知錯誤'}`, 'error');
           }
         } catch (error) {
           setStatus('連線失敗，請確認網路或服務部署', 'error');
@@ -736,7 +727,7 @@
         }
         
         // 載入/保存 Apps Script URL
-        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzalammUE9iiK6-b6MwNG3q7rh3CBnY4zN3hqVooHyxXbzGS8h3EgxWLNGaAs4pkiI2/exec';
+        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbxqIV8fevVTSjcykeaS7N2LDVIzDNCYfefwxqFCunC-5JAZGhelwMtqtAghRaDWp1Lf/exec';
         try {
           const saved = localStorage.getItem('gasUrl');
           gasUrlInput.value = (saved && saved.trim()) ? saved.trim() : DEFAULT_GAS_URL;
