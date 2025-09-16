@@ -66,6 +66,11 @@
             <input type="text" id="qrText" required readonly />
           </label>
 
+          <label>
+            填寫人員
+            <input type="text" id="staffName" required placeholder="請輸入填寫人員姓名" />
+          </label>
+
           <div class="row">
             <button type="submit" id="submitBtn">送出到試算表</button>
           </div>
@@ -507,6 +512,7 @@
         const productName = document.getElementById('productName').value;
         const expiryDate = document.getElementById('expiryDate').value;
         const qrText = document.getElementById('qrText').value;
+        const staffName = document.getElementById('staffName').value;
         
         // 取得批號（可能是 input 或 select）
         let batchNumber = '';
@@ -520,7 +526,7 @@
         }
 
         // 驗證必填欄位
-        if (!productName || !expiryDate || !batchNumber || !qrText) {
+        if (!productName || !expiryDate || !batchNumber || !qrText || !staffName) {
           setStatus('請完整填寫所有必填欄位', 'error');
           return;
         }
@@ -533,6 +539,7 @@
             expiryDate: expiryDate.trim(),
             batchNumber: batchNumber.trim(),
             qrText: qrText.trim(),
+            staffName: staffName.trim(),
             timestamp: new Date().toISOString(),
           };
 
@@ -551,6 +558,7 @@
             // 清空表單
             document.getElementById('recordForm').reset();
             document.getElementById('qrText').value = '';
+            document.getElementById('staffName').value = '';
             
             // 清空掃描記錄
             scannedQRs.clear();
@@ -591,7 +599,7 @@
         }
         
         // 載入/保存 Apps Script URL
-        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbxxQhei3ktdRJpp0NozC0sqse00FQx7RJubLLx77qhKKXs7R_t0IGe-OYBbKU_vBtR9/exec';
+        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyGD8VO2rGavkDyoMsPmColAUmZqZp3CAW0FPfSYydAEqB-fg-QGeof4zFwAXXmoYQV/exec';
         try {
           const saved = localStorage.getItem('gasUrl');
           gasUrlInput.value = (saved && saved.trim()) ? saved.trim() : DEFAULT_GAS_URL;
