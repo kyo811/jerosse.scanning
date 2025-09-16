@@ -19,7 +19,7 @@
         <div class="row">
           <button id="startScan">開始掃描</button>
           <button id="stopScan" disabled>停止掃描</button>
-          <button id="switchCamera" disabled>切換鏡頭</button>
+          <button id="manualQR" type="button">手動輸入 QR</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
       </section>
@@ -187,10 +187,74 @@
         }
       }
 
+      // 掃描條碼功能
+      async function startBarcodeScanner() {
+        try {
+          // 檢查是否支援 getUserMedia API
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setStatus('此裝置不支援相機掃描功能', 'error');
+            return;
+          }
+
+          // 請求相機權限
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              facingMode: 'environment', // 使用後置鏡頭
+              width: { ideal: 640 },
+              height: { ideal: 480 }
+            }
+          });
+
+          // 顯示相機畫面
+          const video = document.getElementById('video');
+          if (video) {
+            video.srcObject = stream;
+            video.play();
+            
+            // 啟用/停用按鈕
+            document.getElementById('startScan').disabled = true;
+            document.getElementById('stopScan').disabled = false;
+            
+            setStatus('相機已啟動，請將 QR 碼對準鏡頭', 'info');
+          }
+          
+        } catch (error) {
+          console.error('啟動掃描器失敗:', error);
+          setStatus('無法啟動相機掃描器，請確認權限設定', 'error');
+        }
+      }
+
+      // 停止掃描
+      function stopBarcodeScanner() {
+        const video = document.getElementById('video');
+        if (video && video.srcObject) {
+          const stream = video.srcObject;
+          stream.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
+        }
+        
+        // 啟用/停用按鈕
+        document.getElementById('startScan').disabled = false;
+        document.getElementById('stopScan').disabled = true;
+        
+        setStatus('掃描已停止', 'info');
+      }
+
+      // 手動輸入 QR 碼（暫時替代掃描功能）
+      function manualQRInput() {
+        const qrText = prompt('請輸入 QR 碼內容：');
+        if (qrText) {
+          document.getElementById('qrText').value = qrText;
+          setStatus('QR 碼已手動輸入', 'success');
+        }
+      }
+
       // 綁定事件
       document.addEventListener('DOMContentLoaded', function() {
         const productSelect = document.getElementById('productName');
         const expiryInput = document.getElementById('expiryDate');
+        const startScanBtn = document.getElementById('startScan');
+        const stopScanBtn = document.getElementById('stopScan');
         
         if (productSelect) {
           productSelect.addEventListener('change', queryAutoBatch);
@@ -198,22 +262,21 @@
         if (expiryInput) {
           expiryInput.addEventListener('change', queryAutoBatch);
         }
+        if (startScanBtn) {
+          startScanBtn.addEventListener('click', startBarcodeScanner);
+        }
+        if (stopScanBtn) {
+          stopScanBtn.addEventListener('click', stopBarcodeScanner);
+        }
+        
+        // 手動輸入 QR 碼按鈕
+        const manualQRBtn = document.getElementById('manualQR');
+        if (manualQRBtn) {
+          manualQRBtn.addEventListener('click', manualQRInput);
+        }
       });
     </script>
-    <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js" onload="initApp()" onerror="console.error('Failed to load ZXingBrowser')"></script>
-    <script>
-      function initApp() {
-        if (typeof ZXingBrowser !== 'undefined') {
-          console.log('ZXingBrowser loaded successfully');
-          // 動態載入 app.js
-          const script = document.createElement('script');
-          script.src = 'app.js';
-          document.head.appendChild(script);
-        } else {
-          console.error('ZXingBrowser still not available');
-        }
-      }
-    </script>
+    <!-- 移除 ZXingBrowser，改用原生相機 API -->
   </body>
   </html>
 
