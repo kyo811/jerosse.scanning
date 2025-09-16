@@ -405,19 +405,19 @@
           return;
         }
         
-        // 提取數字部分
+        // 提取數字部分（保持完整格式，包括前導0）
         const qrNumber = match[1];
         
-        // 檢查是否已掃描過（使用數字作為唯一識別）
+        // 檢查是否已掃描過（使用完整數字作為唯一識別）
         if (scannedQRs.has(qrNumber)) {
           setStatus('此 QR 碼已掃描過', 'warning');
           return;
         }
 
-        // 記錄已掃描的 QR 碼（使用數字）
+        // 記錄已掃描的 QR 碼（使用完整數字）
         scannedQRs.add(qrNumber);
         
-        // 更新 QR 內容欄位（顯示數字）
+        // 更新 QR 內容欄位（顯示完整數字，包括前導0）
         document.getElementById('qrText').value = qrNumber;
         
         // 更新掃描記錄顯示
@@ -557,7 +557,7 @@
             return;
           }
           
-          // 提取數字部分
+          // 提取數字部分（保持完整格式，包括前導0）
           const qrNumber = match[1];
           
           // 檢查是否已存在
@@ -566,7 +566,7 @@
             return;
           }
           
-          // 添加到掃描記錄（使用數字）
+          // 添加到掃描記錄（使用完整數字）
           scannedQRs.add(qrNumber);
           document.getElementById('qrText').value = qrNumber;
           updateScannedList();
@@ -614,10 +614,14 @@
             productName: productName.trim(),
             expiryDate: expiryDate.trim(),
             batchNumber: batchNumber.trim(),
-            qrText: qrText.trim(),
+            qrText: qrText.trim(), // 保持字串格式，不轉換為數字
             staffName: staffName.trim(),
             timestamp: new Date().toISOString(),
           };
+          
+          // 調試：確認QR碼數字格式
+          console.log('提交的QR碼:', payload.qrText);
+          console.log('QR碼類型:', typeof payload.qrText);
 
           const response = await fetch(gasUrl, {
             method: 'POST',
