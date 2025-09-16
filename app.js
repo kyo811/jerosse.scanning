@@ -70,11 +70,13 @@
       return;
     }
     
+    console.log('updateProductOptions called with reworkType:', reworkType);
+    
     // 清空現有選項
     productSelect.innerHTML = '';
     
     if (!reworkType) {
-      productSelect.innerHTML = '<option value="">請先選擇重工類型</option>';
+      productSelect.innerHTML = '<option value="">請先選擇重工地點</option>';
       productSelect.disabled = true;
       return;
     }
@@ -93,6 +95,8 @@
       option.textContent = product;
       productSelect.appendChild(option);
     });
+    
+    console.log('Product options updated, total options:', productSelect.options.length);
   }
 
   async function tryAutoFillBatch() {
@@ -306,8 +310,8 @@
     
     // 重工類型變更時更新產品選項
     if (elements.reworkType) {
-      elements.reworkType.addEventListener('change', () => {
-        console.log('Rework type changed to:', elements.reworkType.value);
+      elements.reworkType.addEventListener('change', function() {
+        console.log('Rework type changed to:', this.value);
         updateProductOptions();
         if (elements.batchNumber) elements.batchNumber.value = ''; // 清空批號
       });
