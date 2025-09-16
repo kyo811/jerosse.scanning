@@ -168,10 +168,11 @@
 
           const response = await fetch(gasUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              action: 'lookupBatch', 
-              data: { productName, expiryDate } 
+            // 使用簡單請求以避開 Apps Script 的 CORS 預檢
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: JSON.stringify({
+              action: 'lookupBatch',
+              data: { productName, expiryDate }
             }),
           });
           
@@ -510,7 +511,8 @@
 
           const response = await fetch(gasUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            // 使用簡單請求以避開 Apps Script 的 CORS 預檢
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
             body: JSON.stringify({ action: 'append', data: payload }),
           });
           
@@ -545,6 +547,8 @@
         const expiryInput = document.getElementById('expiryDate');
         const startScanBtn = document.getElementById('startScan');
         const stopScanBtn = document.getElementById('stopScan');
+        const gasUrlInput = document.getElementById('gasUrl');
+        const pingBtn = document.getElementById('pingService');
         
         if (productSelect) {
           productSelect.addEventListener('change', queryAutoBatch);
@@ -559,6 +563,32 @@
           stopScanBtn.addEventListener('click', stopBarcodeScanner);
         }
         
+        // 載入/保存 Apps Script URL
+        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyk7PYzdkMJtcAXVBRTtIkCKOcgfTPyGehMm2PpIc6D1dbQWHd1qLLa9-f74TTMoEsf/exec';
+        try {
+          const saved = localStorage.getItem('gasUrl');
+          gasUrlInput.value = (saved && saved.trim()) ? saved.trim() : DEFAULT_GAS_URL;
+        } catch {}
+        if (gasUrlInput) {
+          gasUrlInput.addEventListener('change', function() {
+            try { localStorage.setItem('gasUrl', this.value.trim()); } catch {}
+          });
+        }
+
+        // 測試連線
+        if (pingBtn) {
+          pingBtn.addEventListener('click', async function() {
+            const url = gasUrlInput.value.trim();
+            if (!url) { setStatus('請先設定 Apps Script 服務網址', 'error'); return; }
+            setStatus('測試連線中...', 'info');
+            try {
+              const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify({ action: 'ping' }) });
+              const data = await res.json();
+              if (data && data.ok) setStatus('連線正常', 'success'); else setStatus('連線失敗', 'error');
+            } catch (e) { setStatus('連線失敗，請確認部署與權限', 'error'); }
+          });
+        }
+
         // 手動輸入 QR 碼按鈕
         const manualQRBtn = document.getElementById('manualQR');
         if (manualQRBtn) {
