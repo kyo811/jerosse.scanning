@@ -391,17 +391,29 @@
       function handleQRResult(result) {
         const qrText = result.data;
         
-        // 檢查是否已掃描過
-        if (scannedQRs.has(qrText)) {
+        // 驗證QR碼格式：必須是 @https://jerosse.com.tw/ 開頭且後面有數字
+        const jerossePattern = /^@https:\/\/jerosse\.com\.tw\/(\d+)$/;
+        const match = qrText.match(jerossePattern);
+        
+        if (!match) {
+          setStatus('QR碼格式不符，請掃描正確的婕樂纖產品QR碼', 'warning');
+          return;
+        }
+        
+        // 提取數字部分
+        const qrNumber = match[1];
+        
+        // 檢查是否已掃描過（使用數字作為唯一識別）
+        if (scannedQRs.has(qrNumber)) {
           setStatus('此 QR 碼已掃描過', 'warning');
           return;
         }
 
-        // 記錄已掃描的 QR 碼
-        scannedQRs.add(qrText);
+        // 記錄已掃描的 QR 碼（使用數字）
+        scannedQRs.add(qrNumber);
         
-        // 更新 QR 內容欄位
-        document.getElementById('qrText').value = qrText;
+        // 更新 QR 內容欄位（顯示數字）
+        document.getElementById('qrText').value = qrNumber;
         
         // 更新掃描記錄顯示
         updateScannedList();
@@ -411,6 +423,53 @@
         // 震動提示（如果支援）
         if (navigator.vibrate) {
           navigator.vibrate(200);
+        }
+        
+        // 使用原生API標記已掃描的QR碼（AR功能）
+        markQRCodeAsScanned(result);
+      }
+
+      // 使用原生API標記已掃描的QR碼（AR功能）
+      function markQRCodeAsScanned(result) {
+        try {
+          // 檢查是否支援WebXR或AR功能
+          if ('xr' in navigator) {
+            // 使用WebXR API進行AR標記
+            navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+              if (supported) {
+                console.log('AR功能可用，可進行QR碼標記');
+                // 這裡可以添加AR標記邏輯
+                // 例如：在QR碼位置顯示已掃描標記
+              }
+            });
+          }
+          
+          // 使用Canvas在QR碼位置繪製標記
+          const canvas = document.getElementById('overlay');
+          if (canvas && result.location) {
+            const ctx = canvas.getContext('2d');
+            const rect = result.location;
+            
+            // 繪製綠色圓圈標記
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(rect.x + rect.width/2, rect.y + rect.height/2, Math.max(rect.width, rect.height)/2 + 10, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // 繪製"✓"標記
+            ctx.fillStyle = '#4CAF50';
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('✓', rect.x + rect.width/2, rect.y + rect.height/2 + 7);
+            
+            // 3秒後清除標記
+            setTimeout(() => {
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }, 3000);
+          }
+        } catch (error) {
+          console.log('AR標記功能不可用:', error);
         }
       }
 
@@ -430,25 +489,25 @@
         title.textContent = `已掃描 ${scannedQRs.size} 個 QR 碼：`;
         listContainer.appendChild(title);
 
-        scannedQRs.forEach((qr, index) => {
+        scannedQRs.forEach((qrNumber, index) => {
           const item = document.createElement('div');
           item.className = 'scanned-item';
           item.innerHTML = `
             <span class="qr-number">${index + 1}.</span>
-            <span class="qr-content">${qr}</span>
-            <button class="remove-btn" onclick="removeQR('${qr}')">×</button>
+            <span class="qr-content">@https://jerosse.com.tw/${qrNumber}</span>
+            <button class="remove-btn" onclick="removeQR('${qrNumber}')">×</button>
           `;
           listContainer.appendChild(item);
         });
       }
 
       // 移除 QR 碼
-      function removeQR(qrText) {
-        scannedQRs.delete(qrText);
+      function removeQR(qrNumber) {
+        scannedQRs.delete(qrNumber);
         updateScannedList();
         
         // 如果移除的是當前 QR 內容，清空欄位
-        if (document.getElementById('qrText').value === qrText) {
+        if (document.getElementById('qrText').value === qrNumber) {
           document.getElementById('qrText').value = '';
         }
         
@@ -484,15 +543,27 @@
         if (qrText && qrText.trim()) {
           const trimmedQR = qrText.trim();
           
+          // 驗證QR碼格式：必須是 @https://jerosse.com.tw/ 開頭且後面有數字
+          const jerossePattern = /^@https:\/\/jerosse\.com\.tw\/(\d+)$/;
+          const match = trimmedQR.match(jerossePattern);
+          
+          if (!match) {
+            setStatus('QR碼格式不符，請輸入正確的婕樂纖產品QR碼', 'warning');
+            return;
+          }
+          
+          // 提取數字部分
+          const qrNumber = match[1];
+          
           // 檢查是否已存在
-          if (scannedQRs.has(trimmedQR)) {
+          if (scannedQRs.has(qrNumber)) {
             setStatus('此 QR 碼已存在於記錄中', 'warning');
             return;
           }
           
-          // 添加到掃描記錄
-          scannedQRs.add(trimmedQR);
-          document.getElementById('qrText').value = trimmedQR;
+          // 添加到掃描記錄（使用數字）
+          scannedQRs.add(qrNumber);
+          document.getElementById('qrText').value = qrNumber;
           updateScannedList();
           setStatus(`QR 碼已手動輸入！已記錄 ${scannedQRs.size} 個 QR 碼`, 'success');
         }
