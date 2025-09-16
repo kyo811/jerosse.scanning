@@ -29,7 +29,7 @@
         <form id="recordForm">
           <label>
             重工地點
-            <select id="reworkType" required>
+            <select id="reworkType" required onchange="updateProductOptions()">
               <option value="">請選擇重工地點</option>
               <option value="廠內重工">廠內重工</option>
               <option value="廠外重工">廠外重工</option>
@@ -88,6 +88,47 @@
       </footer>
     </main>
 
+    <script>
+      // 產品分類資料
+      const PRODUCT_CATEGORIES = {
+        "廠內重工": ["纖纖飲", "肽纖飲-可可", "厚焙奶茶", "水光錠", "水光面膜", "雪聚露", "婕肌零", "身體油", "護手霜", "玻尿酸", "洗髮露", "養髮液", "葉黃素EX飲", "葉黃素果凍", "正冠茶"],
+        "廠外重工": ["纖飄錠", "爆纖錠", "纖酵宿", "紫纖飲", "益生菌", "固樂纖"]
+      };
+
+      // 全域函數：更新產品選項
+      function updateProductOptions() {
+        const reworkType = document.getElementById('reworkType').value;
+        const productSelect = document.getElementById('productName');
+        
+        console.log('updateProductOptions called with reworkType:', reworkType);
+        
+        // 清空現有選項
+        productSelect.innerHTML = '';
+        
+        if (!reworkType) {
+          productSelect.innerHTML = '<option value="">請先選擇重工地點</option>';
+          productSelect.disabled = true;
+          return;
+        }
+        
+        // 啟用產品選擇
+        productSelect.disabled = false;
+        productSelect.innerHTML = '<option value="">請選擇產品</option>';
+        
+        // 加入該類別的產品
+        const products = PRODUCT_CATEGORIES[reworkType] || [];
+        console.log('Updating products for:', reworkType, products);
+        
+        products.forEach(product => {
+          const option = document.createElement('option');
+          option.value = product;
+          option.textContent = product;
+          productSelect.appendChild(option);
+        });
+        
+        console.log('Product options updated, total options:', productSelect.options.length);
+      }
+    </script>
     <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js" onload="initApp()" onerror="console.error('Failed to load ZXingBrowser')"></script>
     <script>
       function initApp() {
