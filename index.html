@@ -303,6 +303,33 @@
         }
       }
 
+      // 連線測試（可靜默）
+      async function pingService(silent = true) {
+        try {
+          const gasUrl = document.getElementById('gasUrl').value.trim();
+          if (!gasUrl) {
+            if (!silent) setStatus('請先設定 Apps Script 服務網址', 'error');
+            return false;
+          }
+          if (!silent) setStatus('測試連線中...', 'info');
+          const res = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: JSON.stringify({ action: 'ping' }),
+          });
+          const data = await res.json();
+          if (data && data.ok) {
+            if (!silent) setStatus('連線正常', 'success');
+            return true;
+          }
+          if (!silent) setStatus('連線失敗', 'error');
+          return false;
+        } catch (e) {
+          if (!silent) setStatus('連線失敗，請確認部署與權限', 'error');
+          return false;
+        }
+      }
+
       // 啟動 QR 掃描器
       async function startBarcodeScanner() {
         try {
@@ -577,16 +604,7 @@
 
         // 測試連線
         if (pingBtn) {
-          pingBtn.addEventListener('click', async function() {
-            const url = gasUrlInput.value.trim();
-            if (!url) { setStatus('請先設定 Apps Script 服務網址', 'error'); return; }
-            setStatus('測試連線中...', 'info');
-            try {
-              const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify({ action: 'ping' }) });
-              const data = await res.json();
-              if (data && data.ok) setStatus('連線正常', 'success'); else setStatus('連線失敗', 'error');
-            } catch (e) { setStatus('連線失敗，請確認部署與權限', 'error'); }
-          });
+          pingBtn.addEventListener('click', function() { pingService(false); });
         }
 
         // 手動輸入 QR 碼按鈕
@@ -600,6 +618,8 @@
         if (recordForm) {
           recordForm.addEventListener('submit', handleFormSubmit);
         }
+        // 開啟頁面自動連線測試（靜默），失敗才提示
+        pingService(true).then(ok => { if (!ok) setStatus('無法連線 Apps Script，請確認網址或部署', 'warning'); });
       });
     </script>
     <!-- 移除 ZXingBrowser，改用原生相機 API -->
