@@ -144,7 +144,7 @@
         console.log('Product options updated, total options:', productSelect.options.length);
       }
 
-      // 查詢批號（改進版）
+      // 查詢批號（支援多筆符合）
       async function queryAutoBatch() {
         const productName = document.getElementById('productName').value;
         const expiryDate = document.getElementById('expiryDate').value;
@@ -177,18 +177,95 @@
           
           const data = await response.json();
           
-          if (data && data.ok && data.batch) {
-            batchInput.value = data.batch;
-            setStatus('批號已自動帶入', 'success');
+          if (data && data.ok) {
+            const batchResult = data.batch;
+            
+            if (!batchResult) {
+              // 查無批號
+              setBatchAsInput(batchInput, '', true);
+              setStatus('查無批號，請確認產品名稱與效期', 'error');
+            } else if (Array.isArray(batchResult)) {
+              // 多筆符合，轉換為下拉選單
+              setBatchAsSelect(batchInput, batchResult);
+              setStatus(`找到 ${batchResult.length} 個批號，請選擇其中一個`, 'info');
+            } else {
+              // 單筆符合，直接填入
+              setBatchAsInput(batchInput, batchResult, true);
+              setStatus('批號已自動帶入', 'success');
+            }
           } else {
-            batchInput.value = '';
+            setBatchAsInput(batchInput, '', true);
             setStatus('查無批號，請確認產品名稱與效期', 'error');
           }
         } catch (error) {
-          batchInput.value = '';
+          setBatchAsInput(batchInput, '', true);
           setStatus('批號查詢失敗，請稍後再試', 'error');
           console.error('批號查詢失敗:', error);
         }
+      }
+
+      // 設定批號為輸入框
+      function setBatchAsInput(input, value, readonly = true) {
+        // 移除現有的 select（如果有的話）
+        const existingSelect = input.parentNode.querySelector('select.batch-select');
+        if (existingSelect) {
+          input.parentNode.removeChild(existingSelect);
+        }
+        
+        input.type = 'text';
+        input.value = value || '';
+        input.readOnly = readonly;
+        input.disabled = false;
+        input.style.display = 'block';
+        input.className = input.className.replace(' batch-select', '');
+      }
+
+      // 設定批號為下拉選單
+      function setBatchAsSelect(input, batches) {
+        // 隱藏原本的 input
+        input.style.display = 'none';
+        
+        // 移除現有的 select（如果有的話）
+        const existingSelect = input.parentNode.querySelector('select.batch-select');
+        if (existingSelect) {
+          input.parentNode.removeChild(existingSelect);
+        }
+        
+        // 建立新的 select
+        const select = document.createElement('select');
+        select.className = 'batch-select';
+        select.style.width = '100%';
+        select.style.padding = '10px 12px';
+        select.style.borderRadius = '8px';
+        select.style.border = '1px solid #2b313b';
+        select.style.background = '#0f1115';
+        select.style.color = '#e8eaed';
+        
+        // 加入提示選項
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = '請選擇批號';
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        select.appendChild(placeholder);
+        
+        // 加入批號選項
+        batches.forEach(batch => {
+          const option = document.createElement('option');
+          option.value = batch;
+          option.textContent = batch;
+          select.appendChild(option);
+        });
+        
+        // 綁定變更事件
+        select.addEventListener('change', function() {
+          if (this.value) {
+            setStatus('批號已選擇', 'success');
+          }
+        });
+        
+        // 插入到 input 後面
+        input.parentNode.insertBefore(select, input.nextSibling);
       }
 
       // 狀態顯示函數
@@ -363,6 +440,80 @@
         }
       }
 
+      // 處理表單提交
+      async function handleFormSubmit(event) {
+        event.preventDefault();
+        
+        const gasUrl = document.getElementById('gasUrl').value.trim();
+        if (!gasUrl) {
+          setStatus('請先設定 Apps Script 服務網址', 'error');
+          return;
+        }
+
+        // 取得表單資料
+        const productName = document.getElementById('productName').value;
+        const expiryDate = document.getElementById('expiryDate').value;
+        const qrText = document.getElementById('qrText').value;
+        
+        // 取得批號（可能是 input 或 select）
+        let batchNumber = '';
+        const batchInput = document.getElementById('batchNumber');
+        const batchSelect = document.querySelector('select.batch-select');
+        
+        if (batchSelect && batchSelect.style.display !== 'none') {
+          batchNumber = batchSelect.value;
+        } else {
+          batchNumber = batchInput.value;
+        }
+
+        // 驗證必填欄位
+        if (!productName || !expiryDate || !batchNumber || !qrText) {
+          setStatus('請完整填寫所有必填欄位', 'error');
+          return;
+        }
+
+        setStatus('送出中...', 'info');
+        
+        try {
+          const payload = {
+            productName: productName.trim(),
+            expiryDate: expiryDate.trim(),
+            batchNumber: batchNumber.trim(),
+            qrText: qrText.trim(),
+            timestamp: new Date().toISOString(),
+          };
+
+          const response = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'append', data: payload }),
+          });
+          
+          const data = await response.json();
+          
+          if (data && data.ok) {
+            setStatus('已成功寫入試算表', 'success');
+            
+            // 清空表單
+            document.getElementById('recordForm').reset();
+            document.getElementById('qrText').value = '';
+            
+            // 清空掃描記錄
+            scannedQRs.clear();
+            updateScannedList();
+            
+            // 重置批號欄位
+            setBatchAsInput(batchInput, '', true);
+            
+          } else {
+            setStatus(`寫入失敗：${(data && data.error) || '未知錯誤'}`, 'error');
+          }
+        } catch (error) {
+          setStatus('連線失敗，請確認網路或服務部署', 'error');
+          console.error('表單提交失敗:', error);
+        }
+      }
+
       // 綁定事件
       document.addEventListener('DOMContentLoaded', function() {
         const productSelect = document.getElementById('productName');
@@ -387,6 +538,12 @@
         const manualQRBtn = document.getElementById('manualQR');
         if (manualQRBtn) {
           manualQRBtn.addEventListener('click', manualQRInput);
+        }
+
+        // 表單提交事件
+        const recordForm = document.getElementById('recordForm');
+        if (recordForm) {
+          recordForm.addEventListener('submit', handleFormSubmit);
         }
       });
     </script>
