@@ -677,32 +677,58 @@
           const ctx = canvas.getContext('2d');
           const rect = result.location;
           
-          // 繪製半透明背景覆蓋整個QR碼
-          ctx.fillStyle = 'rgba(255, 152, 0, 0.4)';
-          ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+          // 儲存標記位置信息（用於持久化）
+          const markerInfo = {
+            qrNumber: qrNumber,
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            timestamp: Date.now()
+          };
           
-          // 繪製橙色圓圈標記（類似圖中的標記）
-          ctx.strokeStyle = '#FF9800';
-          ctx.fillStyle = 'rgba(255, 152, 0, 0.2)';
-          ctx.lineWidth = 4;
-          ctx.beginPath();
-          ctx.arc(rect.x + rect.width/2, rect.y + rect.height/2, Math.max(rect.width, rect.height)/2 + 10, 0, 2 * Math.PI);
-          ctx.fill();
-          ctx.stroke();
+          // 儲存到本地存儲
+          let markers = JSON.parse(localStorage.getItem('arMarkers') || '[]');
+          markers.push(markerInfo);
+          localStorage.setItem('arMarkers', JSON.stringify(markers));
           
-          // 繪製"✓"標記
-          ctx.fillStyle = '#FF9800';
-          ctx.font = 'bold 28px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText('✓', rect.x + rect.width/2, rect.y + rect.height/2 + 10);
+          // 繪製標記
+          drawMarkerOnCanvas(markerInfo);
           
-          // 繪製QR碼編號
-          ctx.font = 'bold 14px Arial';
-          ctx.fillText(qrNumber, rect.x + rect.width/2, rect.y + rect.height/2 + 30);
-          
-          // 標記會持續顯示，直到頁面重新整理
-          console.log(`Canvas標記已創建: ${qrNumber}`);
+          console.log(`Canvas標記已創建並固定: ${qrNumber}`);
         }
+      }
+      
+      // 在Canvas上繪製標記
+      function drawMarkerOnCanvas(markerInfo) {
+        const canvas = document.getElementById('overlay');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const { x, y, width, height, qrNumber } = markerInfo;
+        
+        // 繪製半透明背景覆蓋整個QR碼
+        ctx.fillStyle = 'rgba(255, 152, 0, 0.4)';
+        ctx.fillRect(x, y, width, height);
+        
+        // 繪製橙色圓圈標記（類似圖中的標記）
+        ctx.strokeStyle = '#FF9800';
+        ctx.fillStyle = 'rgba(255, 152, 0, 0.2)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(x + width/2, y + height/2, Math.max(width, height)/2 + 10, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+        
+        // 繪製"✓"標記
+        ctx.fillStyle = '#FF9800';
+        ctx.font = 'bold 28px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('✓', x + width/2, y + height/2 + 10);
+        
+        // 繪製QR碼編號
+        ctx.font = 'bold 14px Arial';
+        ctx.fillText(qrNumber, x + width/2, y + height/2 + 30);
       }
 
       // 啟動AR會話（自動啟動）
@@ -747,7 +773,26 @@
         // 清除AR標記
         arMarkers.clear();
         
+        // 清除本地存儲的標記
+        localStorage.removeItem('arMarkers');
+        
         setStatus('所有標記已清除', 'info');
+      }
+      
+      // 恢復之前保存的標記
+      function restoreMarkers() {
+        try {
+          const savedMarkers = JSON.parse(localStorage.getItem('arMarkers') || '[]');
+          if (savedMarkers.length > 0) {
+            console.log(`恢復 ${savedMarkers.length} 個標記`);
+            savedMarkers.forEach(marker => {
+              drawMarkerOnCanvas(marker);
+            });
+            setStatus(`已恢復 ${savedMarkers.length} 個標記`, 'info');
+          }
+        } catch (error) {
+          console.error('恢復標記失敗:', error);
+        }
       }
 
       // 更新掃描記錄列表
@@ -927,6 +972,9 @@
             scannedQRs.clear();
             updateScannedList();
             
+            // 清空AR標記
+            clearAllMarkers();
+            
             // 重置批號欄位
             setBatchAsInput(batchInput, '', true);
             
@@ -1004,6 +1052,9 @@
         
         // 初始化AR功能
         initAR();
+        
+        // 恢復之前保存的標記
+        restoreMarkers();
       });
     </script>
     <!-- 移除 ZXingBrowser，改用原生相機 API -->
