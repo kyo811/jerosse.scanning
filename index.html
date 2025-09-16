@@ -391,12 +391,17 @@
       function handleQRResult(result) {
         const qrText = result.data;
         
+        // 調試：顯示實際掃描到的內容
+        console.log('掃描到的QR碼內容:', qrText);
+        console.log('QR碼長度:', qrText.length);
+        console.log('QR碼字符編碼:', qrText.split('').map(c => c.charCodeAt(0)));
+        
         // 驗證QR碼格式：必須是 https://jerosse.com.tw/ 開頭且後面有數字
         const jerossePattern = /^https:\/\/jerosse\.com\.tw\/(\d+)$/;
         const match = qrText.match(jerossePattern);
         
         if (!match) {
-          setStatus('QR碼格式不符，請掃描正確的婕樂纖產品QR碼', 'warning');
+          setStatus(`QR碼格式不符，掃描到: "${qrText}"，請掃描正確的婕樂纖產品QR碼`, 'warning');
           return;
         }
         
