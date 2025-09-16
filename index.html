@@ -152,7 +152,7 @@
         const statusDiv = document.getElementById('status');
         
         if (!productName || !expiryDate) {
-          batchInput.value = '';
+          setBatchAsInput(batchInput, '', true);
           setStatus('請選擇產品名稱和效期', 'info');
           return;
         }
@@ -184,7 +184,7 @@
             
             if (!batchResult) {
               // 查無批號
-              setBatchAsInput(batchInput, '', true);
+              setBatchAsInput(batchInput, '查無批號', true);
               setStatus('查無批號，請確認產品名稱與效期是否正確', 'error');
             } else if (Array.isArray(batchResult)) {
               // 多筆符合，轉換為下拉選單
@@ -196,11 +196,11 @@
               setStatus('批號已自動帶入', 'success');
             }
           } else {
-            setBatchAsInput(batchInput, '', true);
+            setBatchAsInput(batchInput, '查無批號', true);
             setStatus('查無批號，請確認產品名稱與效期是否正確', 'error');
           }
         } catch (error) {
-          setBatchAsInput(batchInput, '', true);
+          setBatchAsInput(batchInput, '查詢失敗', true);
           setStatus('批號查詢失敗，請稍後再試', 'error');
           console.error('批號查詢失敗:', error);
         }
@@ -220,6 +220,29 @@
         input.disabled = false;
         input.style.display = 'block';
         input.className = input.className.replace(' batch-select', '');
+        
+        // 根據值設定視覺效果
+        if (!value) {
+          // 空值：恢復正常樣式
+          input.style.background = '#0f1115';
+          input.style.border = '1px solid #2b313b';
+          input.style.color = '#e8eaed';
+        } else if (value.includes('查無批號') || value.includes('查詢失敗')) {
+          // 錯誤狀態：紅色警告樣式
+          input.style.background = '#ffebee';
+          input.style.border = '2px solid #f44336';
+          input.style.color = '#d32f2f';
+          if (value.includes('查無批號')) {
+            input.value = '❗ 查無批號';
+          } else {
+            input.value = '❌ 查詢失敗';
+          }
+        } else {
+          // 成功狀態：綠色成功樣式
+          input.style.background = '#e8f5e8';
+          input.style.border = '2px solid #4caf50';
+          input.style.color = '#2e7d32';
+        }
       }
 
       // 設定批號為下拉選單
