@@ -85,6 +85,61 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 
 footer { color: var(--muted); font-size: 12px; margin: 16px 0; }
 
+/* 掃描記錄樣式 */
+.scanned-list {
+  margin: 12px 0;
+  padding: 8px;
+  background: #1a1d23;
+  border-radius: 8px;
+  border: 1px solid #2b313b;
+}
+
+.scanned-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #2b313b;
+}
+
+.scanned-item:last-child {
+  border-bottom: none;
+}
+
+.qr-number {
+  color: var(--accent);
+  font-weight: 600;
+  margin-right: 8px;
+  min-width: 20px;
+}
+
+.qr-content {
+  flex: 1;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.remove-btn {
+  background: var(--error);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+.remove-btn:hover {
+  background: #b71c1c;
+}
+
+.status.warning {
+  color: #ff9800;
+}
+
 @supports not (aspect-ratio: 3 / 4) {
   #preview-container { height: 60vh; }
 }

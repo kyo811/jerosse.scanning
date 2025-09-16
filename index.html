@@ -22,6 +22,14 @@
           <button id="manualQR" type="button">手動輸入 QR</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
+        
+        <!-- 掃描記錄區域 -->
+        <div id="scannedList" class="scanned-list">
+          <p class="small">尚未掃描任何 QR 碼</p>
+        </div>
+        <div class="row">
+          <button id="clearAllQRs" type="button" onclick="clearAllQRs()">清空所有記錄</button>
+        </div>
       </section>
 
       <section class="card">
@@ -88,12 +96,17 @@
       </footer>
     </main>
 
+    <script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
     <script>
       // 產品分類資料
       const PRODUCT_CATEGORIES = {
         "廠內重工": ["纖纖飲", "肽纖飲-可可", "厚焙奶茶", "水光錠", "水光面膜", "雪聚露", "婕肌零", "身體油", "護手霜", "玻尿酸", "洗髮露", "養髮液", "葉黃素EX飲", "葉黃素果凍", "正冠茶"],
         "廠外重工": ["纖飄錠", "爆纖錠", "纖酵宿", "紫纖飲", "益生菌", "固樂纖"]
       };
+
+      // QR 掃描器實例
+      let qrScanner = null;
+      let scannedQRs = new Set(); // 記錄已掃描的 QR 碼，避免重複
 
       // 全域函數：更新產品選項
       function updateProductOptions() {
@@ -187,65 +200,166 @@
         }
       }
 
-      // 掃描條碼功能
+      // 啟動 QR 掃描器
       async function startBarcodeScanner() {
         try {
-          // 檢查是否支援 getUserMedia API
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            setStatus('此裝置不支援相機掃描功能', 'error');
+          const video = document.getElementById('video');
+          if (!video) {
+            setStatus('找不到相機元素', 'error');
             return;
           }
 
-          // 請求相機權限
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-              facingMode: 'environment', // 使用後置鏡頭
-              width: { ideal: 640 },
-              height: { ideal: 480 }
-            }
-          });
-
-          // 顯示相機畫面
-          const video = document.getElementById('video');
-          if (video) {
-            video.srcObject = stream;
-            video.play();
-            
-            // 啟用/停用按鈕
-            document.getElementById('startScan').disabled = true;
-            document.getElementById('stopScan').disabled = false;
-            
-            setStatus('相機已啟動，請將 QR 碼對準鏡頭', 'info');
+          // 檢查 QR Scanner 是否載入
+          if (typeof QrScanner === 'undefined') {
+            setStatus('QR 掃描器載入失敗，請重新整理頁面', 'error');
+            return;
           }
+
+          // 停止現有的掃描器
+          if (qrScanner) {
+            qrScanner.stop();
+            qrScanner.destroy();
+          }
+
+          // 建立新的 QR 掃描器
+          qrScanner = new QrScanner(
+            video,
+            result => {
+              handleQRResult(result);
+            },
+            {
+              onDecodeError: (error) => {
+                // 解碼錯誤是正常的，不需要顯示
+                console.debug('QR 解碼錯誤:', error);
+              },
+              highlightScanRegion: true,
+              highlightCodeOutline: true,
+            }
+          );
+
+          // 啟動掃描器
+          await qrScanner.start();
+          
+          // 啟用/停用按鈕
+          document.getElementById('startScan').disabled = true;
+          document.getElementById('stopScan').disabled = false;
+          
+          setStatus('QR 掃描器已啟動，請將 QR 碼對準鏡頭', 'info');
           
         } catch (error) {
-          console.error('啟動掃描器失敗:', error);
-          setStatus('無法啟動相機掃描器，請確認權限設定', 'error');
+          console.error('啟動 QR 掃描器失敗:', error);
+          setStatus('無法啟動 QR 掃描器，請確認相機權限', 'error');
         }
+      }
+
+      // 處理 QR 掃描結果
+      function handleQRResult(result) {
+        const qrText = result.data;
+        
+        // 檢查是否已掃描過
+        if (scannedQRs.has(qrText)) {
+          setStatus('此 QR 碼已掃描過', 'warning');
+          return;
+        }
+
+        // 記錄已掃描的 QR 碼
+        scannedQRs.add(qrText);
+        
+        // 更新 QR 內容欄位
+        document.getElementById('qrText').value = qrText;
+        
+        // 更新掃描記錄顯示
+        updateScannedList();
+        
+        setStatus(`QR 碼掃描成功！已記錄 ${scannedQRs.size} 個 QR 碼`, 'success');
+        
+        // 震動提示（如果支援）
+        if (navigator.vibrate) {
+          navigator.vibrate(200);
+        }
+      }
+
+      // 更新掃描記錄列表
+      function updateScannedList() {
+        const listContainer = document.getElementById('scannedList');
+        if (!listContainer) return;
+
+        listContainer.innerHTML = '';
+        
+        if (scannedQRs.size === 0) {
+          listContainer.innerHTML = '<p class="small">尚未掃描任何 QR 碼</p>';
+          return;
+        }
+
+        const title = document.createElement('h4');
+        title.textContent = `已掃描 ${scannedQRs.size} 個 QR 碼：`;
+        listContainer.appendChild(title);
+
+        scannedQRs.forEach((qr, index) => {
+          const item = document.createElement('div');
+          item.className = 'scanned-item';
+          item.innerHTML = `
+            <span class="qr-number">${index + 1}.</span>
+            <span class="qr-content">${qr}</span>
+            <button class="remove-btn" onclick="removeQR('${qr}')">×</button>
+          `;
+          listContainer.appendChild(item);
+        });
+      }
+
+      // 移除 QR 碼
+      function removeQR(qrText) {
+        scannedQRs.delete(qrText);
+        updateScannedList();
+        
+        // 如果移除的是當前 QR 內容，清空欄位
+        if (document.getElementById('qrText').value === qrText) {
+          document.getElementById('qrText').value = '';
+        }
+        
+        setStatus(`已移除 QR 碼，剩餘 ${scannedQRs.size} 個`, 'info');
+      }
+
+      // 清空所有掃描記錄
+      function clearAllQRs() {
+        scannedQRs.clear();
+        document.getElementById('qrText').value = '';
+        updateScannedList();
+        setStatus('已清空所有掃描記錄', 'info');
       }
 
       // 停止掃描
       function stopBarcodeScanner() {
-        const video = document.getElementById('video');
-        if (video && video.srcObject) {
-          const stream = video.srcObject;
-          stream.getTracks().forEach(track => track.stop());
-          video.srcObject = null;
+        if (qrScanner) {
+          qrScanner.stop();
+          qrScanner.destroy();
+          qrScanner = null;
         }
         
         // 啟用/停用按鈕
         document.getElementById('startScan').disabled = false;
         document.getElementById('stopScan').disabled = true;
         
-        setStatus('掃描已停止', 'info');
+        setStatus('QR 掃描器已停止', 'info');
       }
 
-      // 手動輸入 QR 碼（暫時替代掃描功能）
+      // 手動輸入 QR 碼
       function manualQRInput() {
         const qrText = prompt('請輸入 QR 碼內容：');
-        if (qrText) {
-          document.getElementById('qrText').value = qrText;
-          setStatus('QR 碼已手動輸入', 'success');
+        if (qrText && qrText.trim()) {
+          const trimmedQR = qrText.trim();
+          
+          // 檢查是否已存在
+          if (scannedQRs.has(trimmedQR)) {
+            setStatus('此 QR 碼已存在於記錄中', 'warning');
+            return;
+          }
+          
+          // 添加到掃描記錄
+          scannedQRs.add(trimmedQR);
+          document.getElementById('qrText').value = trimmedQR;
+          updateScannedList();
+          setStatus(`QR 碼已手動輸入！已記錄 ${scannedQRs.size} 個 QR 碼`, 'success');
         }
       }
 
