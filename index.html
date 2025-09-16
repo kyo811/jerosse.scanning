@@ -177,13 +177,15 @@
           
           const data = await response.json();
           
+          console.log('批號查詢結果:', data);
+          
           if (data && data.ok) {
             const batchResult = data.batch;
             
             if (!batchResult) {
               // 查無批號
               setBatchAsInput(batchInput, '', true);
-              setStatus('查無批號，請確認產品名稱與效期', 'error');
+              setStatus('查無批號，請確認產品名稱與效期是否正確', 'error');
             } else if (Array.isArray(batchResult)) {
               // 多筆符合，轉換為下拉選單
               setBatchAsSelect(batchInput, batchResult);
@@ -195,7 +197,7 @@
             }
           } else {
             setBatchAsInput(batchInput, '', true);
-            setStatus('查無批號，請確認產品名稱與效期', 'error');
+            setStatus('查無批號，請確認產品名稱與效期是否正確', 'error');
           }
         } catch (error) {
           setBatchAsInput(batchInput, '', true);
