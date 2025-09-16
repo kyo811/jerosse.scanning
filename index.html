@@ -391,8 +391,8 @@
       function handleQRResult(result) {
         const qrText = result.data;
         
-        // 驗證QR碼格式：必須是 @https://jerosse.com.tw/ 開頭且後面有數字
-        const jerossePattern = /^@https:\/\/jerosse\.com\.tw\/(\d+)$/;
+        // 驗證QR碼格式：必須是 https://jerosse.com.tw/ 開頭且後面有數字
+        const jerossePattern = /^https:\/\/jerosse\.com\.tw\/(\d+)$/;
         const match = qrText.match(jerossePattern);
         
         if (!match) {
@@ -494,7 +494,7 @@
           item.className = 'scanned-item';
           item.innerHTML = `
             <span class="qr-number">${index + 1}.</span>
-            <span class="qr-content">@https://jerosse.com.tw/${qrNumber}</span>
+            <span class="qr-content">https://jerosse.com.tw/${qrNumber}</span>
             <button class="remove-btn" onclick="removeQR('${qrNumber}')">×</button>
           `;
           listContainer.appendChild(item);
@@ -543,8 +543,8 @@
         if (qrText && qrText.trim()) {
           const trimmedQR = qrText.trim();
           
-          // 驗證QR碼格式：必須是 @https://jerosse.com.tw/ 開頭且後面有數字
-          const jerossePattern = /^@https:\/\/jerosse\.com\.tw\/(\d+)$/;
+          // 驗證QR碼格式：必須是 https://jerosse.com.tw/ 開頭且後面有數字
+          const jerossePattern = /^https:\/\/jerosse\.com\.tw\/(\d+)$/;
           const match = trimmedQR.match(jerossePattern);
           
           if (!match) {
