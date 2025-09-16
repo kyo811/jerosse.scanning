@@ -7,6 +7,7 @@
     startScan: document.getElementById('startScan'),
     stopScan: document.getElementById('stopScan'),
     switchCamera: document.getElementById('switchCamera'),
+    reworkType: document.getElementById('reworkType'),
     productName: document.getElementById('productName'),
     productList: document.getElementById('productList'),
     expiryDate: document.getElementById('expiryDate'),
@@ -14,8 +15,6 @@
     qrText: document.getElementById('qrText'),
     recordForm: document.getElementById('recordForm'),
     status: document.getElementById('status'),
-    masterCsv: document.getElementById('masterCsv'),
-    clearMaster: document.getElementById('clearMaster'),
     gasUrl: document.getElementById('gasUrl'),
     pingService: document.getElementById('pingService'),
     pingResult: document.getElementById('pingResult'),
@@ -42,6 +41,12 @@
   let masterIndex = null; // Map key: productName||expiry -> batchNumber
   let productNames = new Set();
 
+  // 產品分類資料
+  const PRODUCT_CATEGORIES = {
+    "廠內重工": ["纖纖飲", "肽纖飲-可可", "厚焙奶茶", "水光錠", "水光面膜", "雪聚露", "婕肌零", "身體油", "護手霜", "玻尿酸", "洗髮露", "養髮液", "葉黃素EX飲", "葉黃素果凍", "正冠茶"],
+    "廠外重工": ["纖飄錠", "爆纖錠", "纖酵宿", "紫纖飲", "益生菌", "固樂纖"]
+  };
+
   function setStatus(message, type = 'info') {
     elements.status.textContent = message || '';
     elements.status.className = `status ${type}`;
@@ -56,12 +61,30 @@
     return `${(productName||'').trim()}||${(expiryDate||'').trim()}`;
   }
 
-  function applyProductNamesToDatalist() {
-    elements.productList.innerHTML = '';
-    Array.from(productNames).sort().forEach(name => {
+  function updateProductOptions() {
+    const reworkType = elements.reworkType.value;
+    const productSelect = elements.productName;
+    
+    // 清空現有選項
+    productSelect.innerHTML = '';
+    
+    if (!reworkType) {
+      productSelect.innerHTML = '<option value="">請先選擇重工類型</option>';
+      productSelect.disabled = true;
+      return;
+    }
+    
+    // 啟用產品選擇
+    productSelect.disabled = false;
+    productSelect.innerHTML = '<option value="">請選擇產品</option>';
+    
+    // 加入該類別的產品
+    const products = PRODUCT_CATEGORIES[reworkType] || [];
+    products.forEach(product => {
       const option = document.createElement('option');
-      option.value = name;
-      elements.productList.appendChild(option);
+      option.value = product;
+      option.textContent = product;
+      productSelect.appendChild(option);
     });
   }
 
@@ -270,18 +293,17 @@
     elements.startScan.addEventListener('click', startScanner);
     elements.stopScan.addEventListener('click', stopScanner);
     elements.switchCamera.addEventListener('click', switchCamera);
-    elements.masterCsv.addEventListener('change', (e) => handleMasterFile(e.target.files && e.target.files[0]));
-    elements.clearMaster.addEventListener('click', () => {
-      localStorage.removeItem(LS_KEYS.MASTER);
-      localStorage.removeItem(LS_KEYS.MASTER_UPDATED_AT);
-      masterIndex = null;
-      productNames = new Set();
-      applyProductNamesToDatalist();
-      setStatus('已清除主檔暫存。');
-    });
     elements.gasUrl.addEventListener('change', () => saveGasUrl(elements.gasUrl.value));
     elements.pingService.addEventListener('click', pingService);
     elements.recordForm.addEventListener('submit', submitRecord);
+    
+    // 重工類型變更時更新產品選項
+    elements.reworkType.addEventListener('change', () => {
+      updateProductOptions();
+      elements.batchNumber.value = ''; // 清空批號
+    });
+    
+    // 產品名稱或效期變更時自動查詢批號
     elements.productName.addEventListener('change', tryAutoFillBatch);
     elements.expiryDate.addEventListener('change', tryAutoFillBatch);
   }
@@ -310,8 +332,8 @@
   function init() {
     bindEvents();
     restoreGasUrl();
-    loadMasterFromLocalStorage();
     initCanvasOverlay();
+    updateProductOptions(); // 初始化產品選項
   }
 
   document.addEventListener('DOMContentLoaded', init);

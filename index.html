@@ -28,9 +28,19 @@
         <h2>輸入資料</h2>
         <form id="recordForm">
           <label>
+            重工類型
+            <select id="reworkType" required>
+              <option value="">請選擇重工類型</option>
+              <option value="廠內重工">廠內重工</option>
+              <option value="廠外重工">廠外重工</option>
+            </select>
+          </label>
+
+          <label>
             產品名稱
-            <input type="text" id="productName" required placeholder="輸入或選擇產品名稱" list="productList" />
-            <datalist id="productList"></datalist>
+            <select id="productName" required disabled>
+              <option value="">請先選擇重工類型</option>
+            </select>
           </label>
 
           <label>
@@ -39,8 +49,8 @@
           </label>
 
           <label>
-            批號（自動帶入，可手動修改）
-            <input type="text" id="batchNumber" required />
+            批號（自動帶入）
+            <input type="text" id="batchNumber" required readonly />
           </label>
 
           <label>
@@ -56,12 +66,8 @@
       </section>
 
       <section class="card">
-        <h2>主檔（產品總表）</h2>
-        <p class="small">用來依 產品名稱 + 效期 自動帶入批號</p>
-        <div class="row">
-          <input type="file" id="masterCsv" accept=".csv" />
-          <button id="clearMaster" type="button">清除已載入主檔</button>
-        </div>
+        <h2>Apps Script 服務設定</h2>
+        <p class="small">批號會自動從「全產品批號版本」試算表查詢帶入</p>
         <div class="row">
           <label class="inline">
             Apps Script 服務網址
