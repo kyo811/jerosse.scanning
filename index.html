@@ -108,6 +108,8 @@
         if (!reworkType) {
           productSelect.innerHTML = '<option value="">請先選擇重工地點</option>';
           productSelect.disabled = true;
+          // 清空批號
+          document.getElementById('batchNumber').value = '';
           return;
         }
         
@@ -128,6 +130,75 @@
         
         console.log('Product options updated, total options:', productSelect.options.length);
       }
+
+      // 查詢批號（改進版）
+      async function queryAutoBatch() {
+        const productName = document.getElementById('productName').value;
+        const expiryDate = document.getElementById('expiryDate').value;
+        const batchInput = document.getElementById('batchNumber');
+        const statusDiv = document.getElementById('status');
+        
+        if (!productName || !expiryDate) {
+          batchInput.value = '';
+          setStatus('請選擇產品名稱和效期', 'info');
+          return;
+        }
+
+        setStatus('查詢批號中...', 'info');
+        
+        try {
+          const gasUrl = document.getElementById('gasUrl').value.trim();
+          if (!gasUrl) {
+            setStatus('請先設定 Apps Script 服務網址', 'error');
+            return;
+          }
+
+          const response = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              action: 'lookupBatch', 
+              data: { productName, expiryDate } 
+            }),
+          });
+          
+          const data = await response.json();
+          
+          if (data && data.ok && data.batch) {
+            batchInput.value = data.batch;
+            setStatus('批號已自動帶入', 'success');
+          } else {
+            batchInput.value = '';
+            setStatus('查無批號，請確認產品名稱與效期', 'error');
+          }
+        } catch (error) {
+          batchInput.value = '';
+          setStatus('批號查詢失敗，請稍後再試', 'error');
+          console.error('批號查詢失敗:', error);
+        }
+      }
+
+      // 狀態顯示函數
+      function setStatus(message, type = 'info') {
+        const statusDiv = document.getElementById('status');
+        if (statusDiv) {
+          statusDiv.textContent = message || '';
+          statusDiv.className = `status ${type}`;
+        }
+      }
+
+      // 綁定事件
+      document.addEventListener('DOMContentLoaded', function() {
+        const productSelect = document.getElementById('productName');
+        const expiryInput = document.getElementById('expiryDate');
+        
+        if (productSelect) {
+          productSelect.addEventListener('change', queryAutoBatch);
+        }
+        if (expiryInput) {
+          expiryInput.addEventListener('change', queryAutoBatch);
+        }
+      });
     </script>
     <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js" onload="initApp()" onerror="console.error('Failed to load ZXingBrowser')"></script>
     <script>
