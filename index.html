@@ -65,6 +65,12 @@
             QR 內容（唯一本盒）
             <input type="text" id="qrText" required readonly />
           </label>
+          
+          <label>
+            批量模式
+            <input type="checkbox" id="batchMode" onchange="toggleBatchMode()" />
+            <span class="small">啟用後可一次掃描多個QR碼</span>
+          </label>
 
           <label>
             填寫人員
@@ -112,6 +118,7 @@
       // QR 掃描器實例
       let qrScanner = null;
       let scannedQRs = new Set(); // 記錄已掃描的 QR 碼，避免重複
+      let batchMode = false; // 批量模式狀態
 
       // 全域函數：更新產品選項
       function updateProductOptions() {
@@ -147,6 +154,25 @@
         });
         
         console.log('Product options updated, total options:', productSelect.options.length);
+      }
+
+      // 切換批量模式
+      function toggleBatchMode() {
+        batchMode = document.getElementById('batchMode').checked;
+        const qrInput = document.getElementById('qrText');
+        
+        if (batchMode) {
+          // 批量模式：顯示所有掃描的QR碼
+          qrInput.value = Array.from(scannedQRs).join(', ');
+          qrInput.placeholder = '將顯示所有掃描的QR碼，用逗號分隔';
+          setStatus('批量模式已啟用，可連續掃描多個QR碼', 'info');
+        } else {
+          // 單一模式：只顯示最後一個QR碼
+          const lastQR = Array.from(scannedQRs).pop() || '';
+          qrInput.value = lastQR;
+          qrInput.placeholder = '將顯示最後掃描的QR碼';
+          setStatus('單一模式已啟用，只記錄最後一個QR碼', 'info');
+        }
       }
 
       // 查詢批號（支援多筆符合）
@@ -417,8 +443,15 @@
         // 記錄已掃描的 QR 碼（使用完整數字）
         scannedQRs.add(qrNumber);
         
-        // 更新 QR 內容欄位（顯示完整數字，包括前導0）
-        document.getElementById('qrText').value = qrNumber;
+        // 更新 QR 內容欄位
+        const qrInput = document.getElementById('qrText');
+        if (batchMode) {
+          // 批量模式：顯示所有QR碼，用逗號分隔
+          qrInput.value = Array.from(scannedQRs).join(', ');
+        } else {
+          // 單一模式：只顯示當前QR碼
+          qrInput.value = qrNumber;
+        }
         
         // 更新掃描記錄顯示
         updateScannedList();
@@ -606,34 +639,54 @@
           setStatus('請完整填寫所有必填欄位', 'error');
           return;
         }
+        
+        // 處理QR碼：批量模式時分割多個QR碼
+        const qrCodes = qrText.split(',').map(qr => qr.trim()).filter(qr => qr);
+        if (qrCodes.length === 0) {
+          setStatus('請至少掃描一個QR碼', 'error');
+          return;
+        }
 
-        setStatus('送出中...', 'info');
+        setStatus(`送出中... (${qrCodes.length} 筆記錄)`, 'info');
         
         try {
-          const payload = {
-            productName: productName.trim(),
-            expiryDate: expiryDate.trim(),
-            batchNumber: batchNumber.trim(),
-            qrText: qrText.trim(), // 保持字串格式，不轉換為數字
-            staffName: staffName.trim(),
-            timestamp: new Date().toISOString(),
-          };
+          let successCount = 0;
+          let errorCount = 0;
           
-          // 調試：確認QR碼數字格式
-          console.log('提交的QR碼:', payload.qrText);
-          console.log('QR碼類型:', typeof payload.qrText);
+          // 為每個QR碼創建一筆記錄
+          for (const qrCode of qrCodes) {
+            const payload = {
+              productName: productName.trim(),
+              expiryDate: expiryDate.trim(),
+              batchNumber: batchNumber.trim(),
+              qrText: qrCode, // 單一QR碼
+              staffName: staffName.trim(),
+              timestamp: new Date().toISOString(),
+            };
+            
+            // 調試：確認QR碼數字格式
+            console.log('提交的QR碼:', payload.qrText);
+            console.log('QR碼類型:', typeof payload.qrText);
 
-          const response = await fetch(gasUrl, {
-            method: 'POST',
-            // 使用簡單請求以避開 Apps Script 的 CORS 預檢
-            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-            body: JSON.stringify({ action: 'append', data: payload }),
-          });
+            const response = await fetch(gasUrl, {
+              method: 'POST',
+              // 使用簡單請求以避開 Apps Script 的 CORS 預檢
+              headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+              body: JSON.stringify({ action: 'append', data: payload }),
+            });
+            
+            const data = await response.json();
+            
+            if (data && data.ok) {
+              successCount++;
+            } else {
+              errorCount++;
+              console.error(`QR碼 ${qrCode} 寫入失敗:`, data);
+            }
+          }
           
-          const data = await response.json();
-          
-          if (data && data.ok) {
-            setStatus('已成功寫入試算表', 'success');
+          if (successCount > 0) {
+            setStatus(`已成功寫入 ${successCount} 筆記錄${errorCount > 0 ? `，${errorCount} 筆失敗` : ''}`, 'success');
             
             // 清空表單
             document.getElementById('recordForm').reset();
@@ -647,8 +700,12 @@
             // 重置批號欄位
             setBatchAsInput(batchInput, '', true);
             
+            // 重置批量模式
+            document.getElementById('batchMode').checked = false;
+            batchMode = false;
+            
           } else {
-            setStatus(`寫入失敗：${(data && data.error) || '未知錯誤'}`, 'error');
+            setStatus(`所有記錄寫入失敗 (${errorCount} 筆)`, 'error');
           }
         } catch (error) {
           setStatus('連線失敗，請確認網路或服務部署', 'error');
