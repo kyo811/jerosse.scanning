@@ -88,8 +88,20 @@
       </footer>
     </main>
 
-    <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.js"></script>
-    <script src="app.js"></script>
+    <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js" onload="initApp()" onerror="console.error('Failed to load ZXingBrowser')"></script>
+    <script>
+      function initApp() {
+        if (typeof ZXingBrowser !== 'undefined') {
+          console.log('ZXingBrowser loaded successfully');
+          // 動態載入 app.js
+          const script = document.createElement('script');
+          script.src = 'app.js';
+          document.head.appendChild(script);
+        } else {
+          console.error('ZXingBrowser still not available');
+        }
+      }
+    </script>
   </body>
   </html>
 

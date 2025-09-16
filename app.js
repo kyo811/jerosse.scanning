@@ -62,8 +62,13 @@
   }
 
   function updateProductOptions() {
-    const reworkType = elements.reworkType.value;
+    const reworkType = elements.reworkType ? elements.reworkType.value : '';
     const productSelect = elements.productName;
+    
+    if (!productSelect) {
+      console.error('productName element not found');
+      return;
+    }
     
     // 清空現有選項
     productSelect.innerHTML = '';
@@ -80,6 +85,8 @@
     
     // 加入該類別的產品
     const products = PRODUCT_CATEGORIES[reworkType] || [];
+    console.log('Updating products for:', reworkType, products);
+    
     products.forEach(product => {
       const option = document.createElement('option');
       option.value = product;
@@ -298,10 +305,13 @@
     elements.recordForm.addEventListener('submit', submitRecord);
     
     // 重工類型變更時更新產品選項
-    elements.reworkType.addEventListener('change', () => {
-      updateProductOptions();
-      elements.batchNumber.value = ''; // 清空批號
-    });
+    if (elements.reworkType) {
+      elements.reworkType.addEventListener('change', () => {
+        console.log('Rework type changed to:', elements.reworkType.value);
+        updateProductOptions();
+        if (elements.batchNumber) elements.batchNumber.value = ''; // 清空批號
+      });
+    }
     
     // 產品名稱或效期變更時自動查詢批號
     elements.productName.addEventListener('change', tryAutoFillBatch);
