@@ -413,6 +413,7 @@
         <div class="row">
           <button id="checkARBtn" type="button" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔍 檢查AR狀態</button>
           <button id="initARBtn" type="button" style="background: linear-gradient(45deg, #607D8B, #455A64); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔧 手動初始化AR</button>
+          <button id="startWebXRBtn" type="button" style="background: linear-gradient(45deg, #FF6B6B, #E53E3E); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🍎 啟動WebXR AR</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
         <div class="hint" style="color: #4CAF50; font-weight: bold;">
@@ -892,7 +893,7 @@
               highlightScanRegion: false, // 關閉掃描區域高亮，避免干擾多QR碼識別
               highlightCodeOutline: true, // 保留QR碼邊框高亮
               preferredCamera: 'environment', // 優先使用後置鏡頭
-              maxScansPerSecond: 50, // 極高掃描頻率，快速識別多QR碼
+              maxScansPerSecond: 100, // 超高掃描頻率，極速識別多QR碼
               calculateScanRegion: function(video) {
                 // 使用全畫面掃描，支援多QR碼識別和超遠距離掃描
                 return {
@@ -906,23 +907,28 @@
               preferredResolution: { width: 4096, height: 2304 },
               // 多QR碼快速識別優化
               qrCodeDetector: {
-                minFeatureSize: 1, // 極低最小特徵尺寸
-                maxNumberOfFeatures: 20000, // 極高最大特徵數量
-                scanInterval: 10, // 極低掃描間隔，超快響應
-                minQRCodeSize: 8, // 支援小QR碼識別
-                detectionThreshold: 0.03, // 極低檢測閾值
-                rotationTolerance: 90, // 支援任意角度
-                blurTolerance: 0.9, // 高模糊容忍度
+                minFeatureSize: 0.5, // 超低最小特徵尺寸，極高靈敏度
+                maxNumberOfFeatures: 50000, // 超高最大特徵數量
+                scanInterval: 5, // 超低掃描間隔，極速響應
+                minQRCodeSize: 3, // 支援極小QR碼識別
+                detectionThreshold: 0.01, // 超低檢測閾值，極高靈敏度
+                rotationTolerance: 180, // 支援任意角度旋轉
+                blurTolerance: 0.95, // 超高模糊容忍度
                 // 多QR碼優化
                 multiQRDetection: true, // 啟用多QR碼檢測
                 parallelProcessing: true, // 並行處理
-                // 快速識別優化
+                // 極速識別優化
                 fastMode: true, // 快速模式
                 skipValidation: false, // 保持驗證
                 // 圖像處理優化
                 imageEnhancement: true,
-                contrastBoost: 1.2,
-                brightnessAdjust: 0.1
+                contrastBoost: 1.5,
+                brightnessAdjust: 0.2,
+                // 新增靈敏度優化
+                edgeDetection: true, // 邊緣檢測
+                noiseReduction: false, // 關閉降噪以保持細節
+                sharpening: true, // 銳化處理
+                adaptiveThreshold: true // 自適應閾值
               }
             }
           );
@@ -1620,21 +1626,191 @@
             console.log('AR場景容器已創建');
           }
           
-          // 檢查WebXR支援（可選）
-          if (navigator.xr) {
-            try {
-              const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
-              console.log('WebXR AR支援:', isSupported);
-            } catch (error) {
-              console.log('WebXR檢查失敗:', error);
-            }
-          } else {
-            console.log('WebXR不支援，使用Canvas AR標記');
-          }
+          // 檢查並初始化蘋果原生WebXR AR
+          await initNativeWebXR();
           
         } catch (error) {
           console.error('AR場景初始化失敗:', error);
-          throw error;
+          setStatus('AR場景初始化失敗', 'error');
+        }
+      }
+
+      // 初始化蘋果原生WebXR AR
+      async function initNativeWebXR() {
+        try {
+          if ('xr' in navigator) {
+            console.log('WebXR API 可用');
+            
+            // 檢查AR支援
+            const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+            if (isSupported) {
+              console.log('蘋果原生WebXR AR 支援');
+              
+              // 創建WebXR AR會話
+              const session = await navigator.xr.requestSession('immersive-ar', {
+                requiredFeatures: ['local', 'hit-test', 'anchors'],
+                optionalFeatures: ['dom-overlay', 'light-estimation']
+              });
+              
+              // 初始化3D座標系統
+              await init3DCoordinateSystem(session);
+              
+            } else {
+              console.log('WebXR AR 不支援，使用Canvas AR');
+            }
+          } else {
+            console.log('WebXR API 不可用，使用Canvas AR');
+          }
+        } catch (error) {
+          console.error('WebXR AR 初始化失敗:', error);
+          setStatus('WebXR AR 初始化失敗，使用Canvas AR', 'warning');
+        }
+      }
+
+      // 初始化3D座標系統
+      async function init3DCoordinateSystem(session) {
+        console.log('初始化3D座標系統...');
+        
+        // 創建WebXR渲染器
+        const canvas = document.createElement('canvas');
+        canvas.id = 'xr-canvas';
+        canvas.style.cssText = `
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          z-index: 1001;
+        `;
+        
+        // 添加到AR容器
+        if (arScene) {
+          arScene.appendChild(canvas);
+        }
+        
+        // 初始化WebXR渲染上下文
+        const gl = canvas.getContext('webgl2', { xrCompatible: true });
+        if (!gl) {
+          throw new Error('WebGL2 不支援');
+        }
+        
+        // 綁定WebXR會話
+        await gl.makeXRCompatible();
+        
+        // 創建3D座標記錄系統
+        const coordinateSystem = {
+          session: session,
+          canvas: canvas,
+          gl: gl,
+          anchors: new Map(), // 儲存3D錨點
+          hitTestSource: null,
+          referenceSpace: null
+        };
+        
+        // 初始化命中測試
+        await initHitTest(coordinateSystem);
+        
+        // 儲存3D座標系統
+        window.ar3DSystem = coordinateSystem;
+        
+        console.log('3D座標系統初始化完成');
+        setStatus('蘋果原生3D AR系統已啟動', 'success');
+      }
+
+      // 初始化命中測試
+      async function initHitTest(coordinateSystem) {
+        const { session, gl } = coordinateSystem;
+        
+        // 創建參考空間
+        coordinateSystem.referenceSpace = await session.requestReferenceSpace('local');
+        
+        // 創建命中測試來源
+        const space = await session.requestReferenceSpace('viewer');
+        coordinateSystem.hitTestSource = await session.requestHitTestSource({ space });
+        
+        console.log('命中測試系統已初始化');
+      }
+
+      // 記錄3D座標
+      async function record3DCoordinates(position, size) {
+        try {
+          // 檢查是否有3D座標系統
+          if (!window.ar3DSystem) {
+            console.log('3D座標系統未初始化，使用2D座標');
+            return {
+              x: position.x,
+              y: position.y,
+              z: 0,
+              type: '2D',
+              timestamp: Date.now()
+            };
+          }
+
+          const { session, hitTestSource, referenceSpace } = window.ar3DSystem;
+          
+          // 計算QR碼中心點
+          const centerX = position.x + size.width / 2;
+          const centerY = position.y + size.height / 2;
+          
+          // 將2D座標轉換為3D射線
+          const ray = {
+            origin: { x: centerX, y: centerY, z: 0, w: 1 },
+            direction: { x: 0, y: 0, z: -1, w: 0 }
+          };
+          
+          // 執行命中測試
+          const hitTestResults = await session.requestHitTest(ray, referenceSpace);
+          
+          if (hitTestResults && hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(referenceSpace);
+            
+            if (pose) {
+              const transform = pose.transform;
+              const position3D = transform.position;
+              const orientation3D = transform.orientation;
+              
+              const coordinates3D = {
+                x: position3D.x,
+                y: position3D.y,
+                z: position3D.z,
+                orientation: {
+                  x: orientation3D.x,
+                  y: orientation3D.y,
+                  z: orientation3D.z,
+                  w: orientation3D.w
+                },
+                type: '3D',
+                timestamp: Date.now(),
+                confidence: hit.confidence || 1.0
+              };
+              
+              console.log('3D座標記錄成功:', coordinates3D);
+              return coordinates3D;
+            }
+          }
+          
+          // 如果命中測試失敗，返回2D座標
+          console.log('命中測試失敗，使用2D座標');
+          return {
+            x: position.x,
+            y: position.y,
+            z: 0,
+            type: '2D',
+            timestamp: Date.now()
+          };
+          
+        } catch (error) {
+          console.error('3D座標記錄失敗:', error);
+          return {
+            x: position.x,
+            y: position.y,
+            z: 0,
+            type: '2D',
+            timestamp: Date.now(),
+            error: error.message
+          };
         }
       }
 
@@ -1662,17 +1838,21 @@
       }
 
       // 添加蘋果原生AR標記
-      function addARMarker(qrCode, position, size) {
+      async function addARMarker(qrCode, position, size) {
         if (!arMarkerElements.has(qrCode)) {
           // 增加掃描計數器
           scanCounter++;
+          
+          // 記錄3D座標
+          const coordinates3D = await record3DCoordinates(position, size);
           
           // 記錄掃描順序
           const scanInfo = {
             qrCode: qrCode,
             order: scanCounter,
             timestamp: Date.now(),
-            timeString: new Date().toLocaleTimeString()
+            timeString: new Date().toLocaleTimeString(),
+            coordinates3D: coordinates3D
           };
           scanOrder.push(scanInfo);
           
@@ -1932,6 +2112,39 @@
         } catch (error) {
           console.error('手動初始化AR失敗:', error);
           setStatus('AR系統手動初始化失敗: ' + error.message, 'error');
+        }
+      }
+
+      // 啟動WebXR AR會話
+      async function startWebXRSession() {
+        try {
+          if (!('xr' in navigator)) {
+            setStatus('WebXR API 不支援', 'error');
+            return;
+          }
+
+          const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+          if (!isSupported) {
+            setStatus('WebXR AR 不支援', 'error');
+            return;
+          }
+
+          setStatus('正在啟動WebXR AR會話...', 'info');
+
+          // 請求WebXR AR會話
+          const session = await navigator.xr.requestSession('immersive-ar', {
+            requiredFeatures: ['local', 'hit-test', 'anchors'],
+            optionalFeatures: ['dom-overlay', 'light-estimation']
+          });
+
+          // 初始化3D座標系統
+          await init3DCoordinateSystem(session);
+
+          setStatus('WebXR AR會話已啟動，3D座標記錄已啟用', 'success');
+
+        } catch (error) {
+          console.error('啟動WebXR AR會話失敗:', error);
+          setStatus(`WebXR AR啟動失敗: ${error.message}`, 'error');
         }
       }
 
@@ -2452,6 +2665,12 @@
         const initARBtn = document.getElementById('initARBtn');
         if (initARBtn) {
           initARBtn.addEventListener('click', manualInitAR);
+        }
+
+        // 啟動WebXR AR按鈕
+        const startWebXRBtn = document.getElementById('startWebXRBtn');
+        if (startWebXRBtn) {
+          startWebXRBtn.addEventListener('click', startWebXRSession);
         }
 
         // 初始化多QR碼掃描模式
