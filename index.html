@@ -400,6 +400,9 @@
         <div class="row">
           <button id="multiScanBtn" type="button" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; margin: 5px; cursor: pointer; transition: all 0.3s ease; font-size: 16px;">📱 多QR碼掃描模式</button>
           <button id="testARBtn" type="button" style="background: linear-gradient(45deg, #FF9800, #F57C00); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🧪 測試AR標記</button>
+          <button id="simpleTestBtn" type="button" style="background: linear-gradient(45deg, #E91E63, #C2185B); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🎯 簡單測試</button>
+        </div>
+        <div class="row">
           <button id="checkARBtn" type="button" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔍 檢查AR狀態</button>
           <button id="initARBtn" type="button" style="background: linear-gradient(45deg, #607D8B, #455A64); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔧 手動初始化AR</button>
         </div>
@@ -1651,21 +1654,38 @@
           arMarker.id = `ar-marker-${qrCode}`;
           arMarker.className = 'ar-marker-3d';
           
-          // 計算3D位置（基於QR碼在畫面中的位置）
+          // 計算AR標記的實際位置（相對於預覽容器）
           const videoRect = video.getBoundingClientRect();
-          const centerX = position.x + size.width / 2;
-          const centerY = position.y + size.height / 2;
+          const previewContainer = document.getElementById('preview-container');
+          const containerRect = previewContainer.getBoundingClientRect();
+          
+          // QR碼在video中的相對位置
+          const qrCenterX = position.x + size.width / 2;
+          const qrCenterY = position.y + size.height / 2;
+          
+          // 轉換到預覽容器的絕對位置
+          const absoluteX = qrCenterX + (videoRect.left - containerRect.left);
+          const absoluteY = qrCenterY + (videoRect.top - containerRect.top);
           
           // 設定AR標記位置和樣式
           arMarker.style.cssText = `
             position: absolute;
-            left: ${centerX}px;
-            top: ${centerY}px;
+            left: ${absoluteX}px;
+            top: ${absoluteY}px;
             transform: translate(-50%, -50%);
             pointer-events: none;
             z-index: 1000;
             animation: arMarkerAppear 0.5s ease-out;
           `;
+          
+          console.log('AR標記位置計算:', {
+            qrPosition: { x: position.x, y: position.y },
+            qrSize: size,
+            qrCenter: { x: qrCenterX, y: qrCenterY },
+            videoRect: { left: videoRect.left, top: videoRect.top },
+            containerRect: { left: containerRect.left, top: containerRect.top },
+            absolutePosition: { x: absoluteX, y: absoluteY }
+          });
           
           // 創建AR標記內容
           arMarker.innerHTML = `
@@ -1925,6 +1945,56 @@
         }
       }
 
+      // 簡單測試AR標記
+      function simpleTestAR() {
+        const video = document.getElementById('video');
+        const previewContainer = document.getElementById('preview-container');
+        
+        if (!video || !previewContainer) {
+          setStatus('相機未啟動，請先啟動掃描器', 'error');
+          return;
+        }
+        
+        // 創建一個簡單的測試標記，直接放在相機畫面中央
+        const testMarker = document.createElement('div');
+        testMarker.id = 'simple-test-marker';
+        testMarker.style.cssText = `
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          width: 60px;
+          height: 60px;
+          background: linear-gradient(135deg, #FFD700, #FFA500);
+          border: 3px solid #000;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+          font-weight: bold;
+          color: #000;
+          z-index: 1000;
+          pointer-events: none;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+          animation: arPulse 1s infinite;
+        `;
+        testMarker.textContent = '1';
+        
+        // 添加到預覽容器
+        previewContainer.appendChild(testMarker);
+        
+        setStatus('簡單測試標記已添加到相機畫面中央', 'success');
+        
+        // 3秒後移除
+        setTimeout(() => {
+          if (testMarker.parentNode) {
+            testMarker.parentNode.removeChild(testMarker);
+          }
+          setStatus('簡單測試標記已移除', 'info');
+        }, 3000);
+      }
+
       // 測試AR標記功能
       function testARMarkers() {
         if (!arScene) {
@@ -1932,43 +2002,74 @@
           return;
         }
         
-        // 添加多個測試AR標記來測試順序
+        // 獲取相機畫面的實際位置
+        const video = document.getElementById('video');
+        const videoRect = video.getBoundingClientRect();
+        const previewContainer = document.getElementById('preview-container');
+        const containerRect = previewContainer.getBoundingClientRect();
+        
+        // 在相機畫面的不同位置添加測試標記
         const testPositions = [
-          { x: 100, y: 100, qr: 'TEST001' },
-          { x: 200, y: 150, qr: 'TEST002' },
-          { x: 150, y: 200, qr: 'TEST003' }
+          { 
+            x: videoRect.width * 0.25 - containerRect.left, 
+            y: videoRect.height * 0.25 - containerRect.top, 
+            qr: 'TEST001' 
+          },
+          { 
+            x: videoRect.width * 0.75 - containerRect.left, 
+            y: videoRect.height * 0.25 - containerRect.top, 
+            qr: 'TEST002' 
+          },
+          { 
+            x: videoRect.width * 0.5 - containerRect.left, 
+            y: videoRect.height * 0.75 - containerRect.top, 
+            qr: 'TEST003' 
+          }
         ];
         
         setStatus('開始測試AR標記，請觀察相機畫面', 'info');
         
         testPositions.forEach((pos, index) => {
           setTimeout(() => {
-            addARMarker(pos.qr, { x: pos.x, y: pos.y }, { width: 80, height: 80 });
-            setStatus(`已添加測試AR標記 ${pos.qr}，順序: ${scanCounter}`, 'success');
+            // 直接創建測試AR標記
+            const testMarker = document.createElement('div');
+            testMarker.id = `test-marker-${pos.qr}`;
+            testMarker.className = 'ar-marker-3d';
+            testMarker.style.cssText = `
+              position: absolute;
+              left: ${pos.x}px;
+              top: ${pos.y}px;
+              transform: translate(-50%, -50%);
+              pointer-events: none;
+              z-index: 1000;
+              animation: arMarkerAppear 0.5s ease-out;
+            `;
+            
+            testMarker.innerHTML = `
+              <div class="ar-marker-content">
+                <div class="ar-order-circle">
+                  <span class="ar-order-number">${index + 1}</span>
+                </div>
+                <div class="ar-qr-label">
+                  <span class="ar-qr-text">${pos.qr}</span>
+                </div>
+                <div class="ar-checkmark">✓</div>
+              </div>
+            `;
+            
+            arScene.appendChild(testMarker);
+            setStatus(`已添加測試AR標記 ${pos.qr}，位置: (${pos.x}, ${pos.y})`, 'success');
           }, index * 1000);
         });
         
         // 8秒後清除所有測試標記
         setTimeout(() => {
           testPositions.forEach(pos => {
-            // 清除AR標記元素
-            const marker = arMarkerElements.get(pos.qr);
+            const marker = document.getElementById(`test-marker-${pos.qr}`);
             if (marker && marker.parentNode) {
               marker.parentNode.removeChild(marker);
             }
-            arMarkerElements.delete(pos.qr);
-            
-            // 清除記錄
-            qrMarkers.delete(pos.qr);
-            const orderIndex = scanOrder.findIndex(item => item.qrCode === pos.qr);
-            if (orderIndex > -1) {
-              scanOrder.splice(orderIndex, 1);
-            }
           });
-          
-          // 重置計數器
-          scanCounter = 0;
-          updateScanOrderDisplay();
           setStatus('測試AR標記已清除', 'info');
         }, 8000);
       }
@@ -2306,6 +2407,12 @@
         const testARBtn = document.getElementById('testARBtn');
         if (testARBtn) {
           testARBtn.addEventListener('click', testARMarkers);
+        }
+
+        // 簡單測試按鈕
+        const simpleTestBtn = document.getElementById('simpleTestBtn');
+        if (simpleTestBtn) {
+          simpleTestBtn.addEventListener('click', simpleTestAR);
         }
 
         // 檢查AR狀態按鈕
