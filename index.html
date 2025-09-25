@@ -17,6 +17,151 @@
         z-index: 3;
       }
       
+      .scan-order-section {
+        margin: 12px 0;
+        padding: 12px;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        border-radius: 8px;
+        color: white;
+      }
+      
+      .scan-order-section h4 {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        text-align: center;
+      }
+      
+      .scan-order-list {
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      
+      .order-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 8px;
+        margin: 2px 0;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      
+      .order-number {
+        background: #FFD700;
+        color: #000;
+        padding: 2px 6px;
+        border-radius: 50%;
+        font-weight: bold;
+        min-width: 20px;
+        text-align: center;
+      }
+      
+      .order-qr {
+        flex: 1;
+        margin: 0 8px;
+        font-weight: bold;
+      }
+      
+      .order-time {
+        font-size: 10px;
+        opacity: 0.8;
+      }
+      
+      /* 蘋果原生AR標記樣式 */
+      .ar-marker-3d {
+        position: absolute;
+        pointer-events: none;
+        z-index: 1000;
+      }
+      
+      .ar-marker-content {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .ar-order-circle {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        border: 3px solid #000;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        animation: arPulse 2s infinite;
+      }
+      
+      .ar-order-number {
+        font-size: 18px;
+        font-weight: bold;
+        color: #000;
+        text-shadow: 1px 1px 2px rgba(255,255,255,0.5);
+      }
+      
+      .ar-qr-label {
+        background: linear-gradient(135deg, #4CAF50, #45a049);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        border: 2px solid #fff;
+      }
+      
+      .ar-checkmark {
+        width: 30px;
+        height: 30px;
+        background: linear-gradient(135deg, #00FF00, #00CC00);
+        border: 2px solid #fff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: bold;
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        animation: arBounce 1s ease-out;
+      }
+      
+      @keyframes arMarkerAppear {
+        0% {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.5);
+        }
+        100% {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+        }
+      }
+      
+      @keyframes arPulse {
+        0%, 100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.1);
+        }
+      }
+      
+      @keyframes arBounce {
+        0% {
+          transform: scale(0);
+        }
+        50% {
+          transform: scale(1.2);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      
       .ar-marker {
         position: absolute;
         pointer-events: none;
@@ -284,6 +429,12 @@
           </div>
         </div>
 
+        <!-- 掃描順序顯示 -->
+        <div id="scanOrderSection" class="scan-order-section" style="display: none;">
+          <h4>📋 掃描順序</h4>
+          <div id="scanOrderList" class="scan-order-list"></div>
+        </div>
+
         <!-- 掃描記錄區域 -->
         <div id="scannedList" class="scanned-list">
           <p class="small">尚未掃描任何 QR 碼</p>
@@ -417,6 +568,10 @@
       let canvas = null; // AR標記畫布
       let ctx = null; // 畫布上下文
       let isAutoFocusing = false; // 自動對焦狀態
+      let scanOrder = []; // 掃描順序記錄
+      let scanCounter = 0; // 掃描計數器
+      let arScene = null; // AR場景
+      let arMarkerElements = new Map(); // AR標記實例
 
       // 全域函數：更新產品選項
       function updateProductOptions() {
@@ -839,7 +994,7 @@
           autoFocusToQR(result);
         }
         
-        // 添加AR標記
+        // 添加真正的AR標記
         if (result.location) {
           const qrLocation = result.location;
           const position = {
@@ -850,7 +1005,7 @@
             width: Math.abs(qrLocation.topRightCorner.x - qrLocation.topLeftCorner.x),
             height: Math.abs(qrLocation.bottomLeftCorner.y - qrLocation.topLeftCorner.y)
           };
-          addQRMarker(qrNumber, position, size);
+          addARMarker(qrNumber, position, size);
         }
         
         // 更新 QR 內容欄位
@@ -1392,10 +1547,61 @@
 
       // 初始化AR標記系統
       function initARMarkers() {
+        // 初始化傳統畫布
         canvas = document.getElementById('arCanvas');
         if (canvas) {
           ctx = canvas.getContext('2d');
           resizeARCanvas();
+        }
+        
+        // 初始化AR場景
+        initARScene();
+      }
+
+      // 初始化蘋果原生AR場景
+      async function initARScene() {
+        try {
+          // 檢查WebXR支援
+          if (!navigator.xr) {
+            console.log('WebXR不支援，使用Canvas AR標記');
+            return;
+          }
+
+          // 檢查AR支援
+          const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+          if (!isSupported) {
+            console.log('AR不支援，使用Canvas AR標記');
+            return;
+          }
+
+          // 創建AR場景容器
+          const arContainer = document.createElement('div');
+          arContainer.id = 'ar-container';
+          arContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 4;
+          `;
+          
+          // 創建WebXR場景
+          arContainer.innerHTML = `
+            <canvas id="ar-canvas" style="width: 100%; height: 100%;"></canvas>
+          `;
+          
+          // 添加到預覽容器
+          const previewContainer = document.getElementById('preview-container');
+          if (previewContainer) {
+            previewContainer.appendChild(arContainer);
+            arScene = arContainer.querySelector('#ar-canvas');
+            console.log('蘋果原生AR場景已初始化');
+          }
+          
+        } catch (error) {
+          console.log('AR初始化失敗，使用Canvas AR標記:', error);
         }
       }
 
@@ -1422,45 +1628,87 @@
         }
       }
 
-      // 添加QR碼AR標記
-      function addQRMarker(qrCode, position, size) {
-        if (!qrMarkers.has(qrCode)) {
-          // 轉換座標到畫布座標系統
-          const canvasRect = canvas.getBoundingClientRect();
-          const videoRect = video.getBoundingClientRect();
+      // 添加蘋果原生AR標記
+      function addARMarker(qrCode, position, size) {
+        if (!arMarkerElements.has(qrCode)) {
+          // 增加掃描計數器
+          scanCounter++;
           
-          // 計算縮放比例
-          const scaleX = canvasRect.width / (video.videoWidth || videoRect.width);
-          const scaleY = canvasRect.height / (video.videoHeight || videoRect.height);
-          
-          const canvasPosition = {
-            x: position.x * scaleX,
-            y: position.y * scaleY
-          };
-          
-          const canvasSize = {
-            width: size.width * scaleX,
-            height: size.height * scaleY
-          };
-          
-          qrMarkers.set(qrCode, {
-            position: canvasPosition,
-            size: canvasSize,
+          // 記錄掃描順序
+          const scanInfo = {
+            qrCode: qrCode,
+            order: scanCounter,
             timestamp: Date.now(),
-            scanned: true
+            timeString: new Date().toLocaleTimeString()
+          };
+          scanOrder.push(scanInfo);
+          
+          // 創建3D AR標記元素
+          const arMarker = document.createElement('div');
+          arMarker.id = `ar-marker-${qrCode}`;
+          arMarker.className = 'ar-marker-3d';
+          
+          // 計算3D位置（基於QR碼在畫面中的位置）
+          const videoRect = video.getBoundingClientRect();
+          const centerX = position.x + size.width / 2;
+          const centerY = position.y + size.height / 2;
+          
+          // 設定AR標記位置和樣式
+          arMarker.style.cssText = `
+            position: absolute;
+            left: ${centerX}px;
+            top: ${centerY}px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1000;
+            animation: arMarkerAppear 0.5s ease-out;
+          `;
+          
+          // 創建AR標記內容
+          arMarker.innerHTML = `
+            <div class="ar-marker-content">
+              <!-- 順序號碼圓圈 -->
+              <div class="ar-order-circle">
+                <span class="ar-order-number">${scanCounter}</span>
+              </div>
+              
+              <!-- QR碼編號 -->
+              <div class="ar-qr-label">
+                <span class="ar-qr-text">${qrCode}</span>
+              </div>
+              
+              <!-- 對勾標記 -->
+              <div class="ar-checkmark">✓</div>
+            </div>
+          `;
+          
+          // 添加到AR場景
+          if (arScene) {
+            arScene.appendChild(arMarker);
+            arMarkerElements.set(qrCode, arMarker);
+          }
+          
+          // 同時保存到傳統標記系統
+          qrMarkers.set(qrCode, {
+            position: position,
+            size: size,
+            timestamp: Date.now(),
+            scanned: true,
+            scanOrder: scanCounter,
+            scanTime: scanInfo.timeString,
+            arMarker: arMarker
           });
           
-          console.log('添加AR標記:', {
+          console.log('添加蘋果原生AR標記:', {
             qrCode,
+            scanOrder: scanCounter,
+            scanTime: scanInfo.timeString,
+            position: { x: centerX, y: centerY },
             originalPosition: position,
-            originalSize: size,
-            canvasPosition,
-            canvasSize,
-            scaleX,
-            scaleY
+            originalSize: size
           });
           
-          drawARMarkers();
+          updateScanOrderDisplay();
         }
       }
 
@@ -1508,11 +1756,27 @@
           ctx.lineTo(centerX + radius/2, centerY - radius/4);
           ctx.stroke();
           
+          // 繪製掃描順序號碼（圓圈背景）
+          const orderText = marker.scanOrder.toString();
+          ctx.fillStyle = '#FFD700'; // 金色背景
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(centerX - radius + 15, centerY - radius + 15, 20, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.stroke();
+          
+          // 繪製順序號碼
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 14px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(orderText, centerX - radius + 15, centerY - radius + 20);
+          
           // 繪製QR碼編號（更大更明顯）
           ctx.fillStyle = '#FFFFFF';
           ctx.strokeStyle = '#000000';
           ctx.lineWidth = 2;
-          ctx.font = 'bold 16px Arial';
+          ctx.font = 'bold 14px Arial';
           ctx.textAlign = 'center';
           ctx.strokeText(qrCode, centerX, centerY + radius + 25);
           ctx.fillText(qrCode, centerX, centerY + radius + 25);
@@ -1528,12 +1792,55 @@
         });
       }
 
+      // 更新掃描順序顯示
+      function updateScanOrderDisplay() {
+        const orderList = document.getElementById('scanOrderList');
+        const orderSection = document.getElementById('scanOrderSection');
+        
+        if (!orderList || !orderSection) return;
+        
+        // 按掃描順序排序
+        const sortedOrder = scanOrder.sort((a, b) => a.order - b.order);
+        
+        if (sortedOrder.length > 0) {
+          orderSection.style.display = 'block';
+          
+          orderList.innerHTML = '';
+          sortedOrder.forEach((item, index) => {
+            const orderItem = document.createElement('div');
+            orderItem.className = 'order-item';
+            orderItem.innerHTML = `
+              <span class="order-number">${item.order}</span>
+              <span class="order-qr">${item.qrCode}</span>
+              <span class="order-time">${item.timeString}</span>
+            `;
+            orderList.appendChild(orderItem);
+          });
+        } else {
+          orderSection.style.display = 'none';
+        }
+      }
+
       // 清除AR標記
       function clearARMarkers() {
+        // 清除3D AR標記
+        arMarkerElements.forEach((marker, qrCode) => {
+          if (marker && marker.parentNode) {
+            marker.parentNode.removeChild(marker);
+          }
+        });
+        arMarkerElements.clear();
+        
+        // 清除傳統標記
         qrMarkers.clear();
+        scanOrder = [];
+        scanCounter = 0;
+        
         if (ctx && canvas) {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
+        
+        updateScanOrderDisplay();
       }
 
       // 智能掃描提示
@@ -1559,19 +1866,33 @@
           return;
         }
         
-        // 添加測試標記
-        const testPosition = { x: 100, y: 100 };
-        const testSize = { width: 80, height: 80 };
-        addQRMarker('TEST123', testPosition, testSize);
+        // 添加多個測試標記來測試順序
+        const testPositions = [
+          { x: 100, y: 100, qr: 'TEST001' },
+          { x: 200, y: 150, qr: 'TEST002' },
+          { x: 150, y: 200, qr: 'TEST003' }
+        ];
         
-        setStatus('已添加測試AR標記，請檢查相機畫面', 'success');
+        testPositions.forEach((pos, index) => {
+          setTimeout(() => {
+            addQRMarker(pos.qr, { x: pos.x, y: pos.y }, { width: 80, height: 80 });
+            setStatus(`已添加測試AR標記 ${pos.qr}，順序: ${scanCounter}`, 'success');
+          }, index * 1000);
+        });
         
-        // 3秒後清除測試標記
+        // 5秒後清除所有測試標記
         setTimeout(() => {
-          qrMarkers.delete('TEST123');
+          testPositions.forEach(pos => {
+            qrMarkers.delete(pos.qr);
+            const orderIndex = scanOrder.findIndex(item => item.qrCode === pos.qr);
+            if (orderIndex > -1) {
+              scanOrder.splice(orderIndex, 1);
+            }
+          });
           drawARMarkers();
+          updateScanOrderDisplay();
           setStatus('測試AR標記已清除', 'info');
-        }, 3000);
+        }, 5000);
       }
 
       // 切換多QR碼掃描模式
