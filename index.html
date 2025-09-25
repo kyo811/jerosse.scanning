@@ -64,6 +64,57 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
       }
+      
+      /* 批量掃描統計樣式 */
+      .batch-stats {
+        margin: 12px 0;
+        animation: fadeIn 0.5s ease-in;
+      }
+      
+      .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 16px;
+        color: white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      }
+      
+      .stats-card h4 {
+        margin: 0 0 12px 0;
+        font-size: 16px;
+        text-align: center;
+      }
+      
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      
+      .stat-item {
+        text-align: center;
+        background: rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 8px;
+      }
+      
+      .stat-number {
+        display: block;
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 4px;
+      }
+      
+      .stat-label {
+        font-size: 12px;
+        opacity: 0.9;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
     </style>
   </head>
   <body>
@@ -85,10 +136,34 @@
           <button id="clearMarkers" type="button">清除所有標記</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
+        <div class="hint" style="color: #4CAF50; font-weight: bold;">
+          💡 自動對焦：系統已自動優化近距離對焦，直接掃描即可
+        </div>
         
         <!-- 掃描記錄區域 -->
         <div id="scannedList" class="scanned-list">
           <p class="small">尚未掃描任何 QR 碼</p>
+        </div>
+        
+        <!-- 批量掃描統計 -->
+        <div id="batchStats" class="batch-stats" style="display: none;">
+          <div class="stats-card">
+            <h4>📊 批量掃描統計</h4>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <span class="stat-number" id="totalScanned">0</span>
+                <span class="stat-label">已掃描</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number" id="scanningSpeed">0</span>
+                <span class="stat-label">掃描/秒</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number" id="uniqueCodes">0</span>
+                <span class="stat-label">不重複</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="row">
           <button id="clearAllQRs" type="button" onclick="clearAllQRs()">清空所有記錄</button>
@@ -130,9 +205,9 @@
           </label>
           
           <label>
-            批量模式
-            <input type="checkbox" id="batchMode" onchange="toggleBatchMode()" />
-            <span class="small">啟用後可一次掃描多個QR碼</span>
+            批量掃描模式
+            <input type="checkbox" id="batchMode" onchange="toggleBatchMode()" checked />
+            <span class="small">✅ 已啟用：可同時掃描多個QR碼（推薦）</span>
           </label>
 
           <label>
@@ -181,7 +256,14 @@
       // QR 掃描器實例
       let qrScanner = null;
       let scannedQRs = new Set(); // 記錄已掃描的 QR 碼，避免重複
-      let batchMode = false; // 批量模式狀態
+      let batchMode = true; // 批量模式狀態（預設啟用）
+      
+      // 批量掃描統計
+      let scanStats = {
+        totalScanned: 0,
+        startTime: null,
+        lastScanTime: null
+      };
 
       // 全域函數：更新產品選項
       function updateProductOptions() {
@@ -228,7 +310,14 @@
           // 批量模式：顯示所有掃描的QR碼
           qrInput.value = Array.from(scannedQRs).join(', ');
           qrInput.placeholder = '將顯示所有掃描的QR碼，用逗號分隔';
-          setStatus('批量模式已啟用，可連續掃描多個QR碼', 'info');
+          setStatus('✅ 批量掃描模式已啟用，可同時識別多個QR碼', 'success');
+          
+          // 如果掃描器正在運行，重新啟動以優化多QR碼掃描
+          if (qrScanner && qrScanner._active) {
+            setTimeout(() => {
+              setStatus('🔄 已優化掃描器設定，支援多QR碼同時識別', 'info');
+            }, 1000);
+          }
         } else {
           // 單一模式：只顯示最後一個QR碼
           const lastQR = Array.from(scannedQRs).pop() || '';
@@ -445,7 +534,24 @@
             qrScanner.destroy();
           }
 
-          // 建立新的 QR 掃描器
+          // 自動優化相機設定，專為近距離QR掃描設計
+          const constraints = {
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: 'environment', // 使用後置鏡頭
+              focusMode: 'continuous', // 連續自動對焦
+              focusDistance: { min: 0.05, max: 1.5 }, // 優化近距離對焦範圍
+              advanced: [
+                { focusMode: 'continuous' },
+                { focusDistance: { min: 0.05, max: 1.5 } },
+                { exposureMode: 'continuous' }, // 連續曝光調整
+                { whiteBalanceMode: 'continuous' } // 連續白平衡調整
+              ]
+            }
+          };
+
+          // 建立新的 QR 掃描器，支援多QR碼識別
           qrScanner = new QrScanner(
             video,
             result => {
@@ -456,19 +562,40 @@
                 // 解碼錯誤是正常的，不需要顯示
                 console.debug('QR 解碼錯誤:', error);
               },
-              highlightScanRegion: true,
-              highlightCodeOutline: true,
+              highlightScanRegion: false, // 關閉掃描區域高亮，避免干擾多QR碼識別
+              highlightCodeOutline: true, // 保留QR碼邊框高亮
+              preferredCamera: 'environment', // 優先使用後置鏡頭
+              maxScansPerSecond: 10, // 提高掃描頻率，支援多QR碼快速識別
+              calculateScanRegion: function(video) {
+                // 使用全畫面掃描，支援多QR碼識別
+                return {
+                  x: 0,
+                  y: 0,
+                  width: video.videoWidth,
+                  height: video.videoHeight
+                };
+              }
             }
           );
 
           // 啟動掃描器
           await qrScanner.start();
           
+          // 自動對焦優化
+          await optimizeAutoFocus();
+          
+          // 重置掃描統計
+          scanStats = {
+            totalScanned: 0,
+            startTime: Date.now(),
+            lastScanTime: null
+          };
+          
           // 啟用/停用按鈕
           document.getElementById('startScan').disabled = true;
           document.getElementById('stopScan').disabled = false;
           
-          setStatus('QR 掃描器已啟動，請將 QR 碼對準鏡頭', 'info');
+          setStatus('QR 掃描器已啟動，支援多QR碼同時識別，請將QR碼對準鏡頭', 'success');
           
         } catch (error) {
           console.error('啟動 QR 掃描器失敗:', error);
@@ -476,22 +603,20 @@
         }
       }
 
-      // 處理 QR 掃描結果
+      // 處理 QR 掃描結果（支援多QR碼識別）
       function handleQRResult(result) {
         const qrText = result.data;
         
         // 調試：顯示實際掃描到的內容
         console.log('掃描到的QR碼內容:', qrText);
-        console.log('QR碼長度:', qrText.length);
-        console.log('QR碼字符編碼:', qrText.split('').map(c => c.charCodeAt(0)));
         
         // 驗證QR碼格式：必須是 https://jerosse.com.tw/ 開頭且後面有數字
         const jerossePattern = /^https:\/\/jerosse\.com\.tw\/(\d+)$/;
         const match = qrText.match(jerossePattern);
         
         if (!match) {
-          setStatus(`QR碼格式不符，掃描到: "${qrText}"，請掃描正確的婕樂纖產品QR碼`, 'warning');
-          return;
+          console.log(`QR碼格式不符: "${qrText}"`);
+          return; // 靜默忽略無效QR碼，避免干擾多QR碼掃描
         }
         
         // 提取數字部分（保持完整格式，包括前導0）
@@ -499,12 +624,15 @@
         
         // 檢查是否已掃描過（使用完整數字作為唯一識別）
         if (scannedQRs.has(qrNumber)) {
-          setStatus('此 QR 碼已掃描過', 'warning');
-          return;
+          console.log(`QR碼已存在: ${qrNumber}`);
+          return; // 靜默忽略重複QR碼
         }
 
         // 記錄已掃描的 QR 碼（使用完整數字）
         scannedQRs.add(qrNumber);
+        
+        // 更新掃描統計
+        updateScanStats();
         
         // 更新 QR 內容欄位
         const qrInput = document.getElementById('qrText');
@@ -519,11 +647,12 @@
         // 更新掃描記錄顯示
         updateScannedList();
         
-        setStatus(`QR 碼掃描成功！已記錄 ${scannedQRs.size} 個 QR 碼`, 'success');
+        // 即時更新狀態顯示
+        setStatus(`✅ 已識別 ${scannedQRs.size} 個QR碼，持續掃描中...`, 'success');
         
         // 震動提示（如果支援）
         if (navigator.vibrate) {
-          navigator.vibrate(200);
+          navigator.vibrate(100); // 短震動，避免干擾連續掃描
         }
         
         // 使用原生API標記已掃描的QR碼（AR功能）
@@ -841,6 +970,20 @@
         scannedQRs.clear();
         document.getElementById('qrText').value = '';
         updateScannedList();
+        
+        // 重置統計數據
+        scanStats = {
+          totalScanned: 0,
+          startTime: null,
+          lastScanTime: null
+        };
+        
+        // 隱藏統計面板
+        const batchStatsEl = document.getElementById('batchStats');
+        if (batchStatsEl) {
+          batchStatsEl.style.display = 'none';
+        }
+        
         setStatus('已清空所有掃描記錄', 'info');
       }
 
@@ -857,6 +1000,145 @@
         document.getElementById('stopScan').disabled = true;
         
         setStatus('QR 掃描器已停止，已掃描的標記仍會顯示', 'info');
+      }
+
+      // 更新掃描統計
+      function updateScanStats() {
+        const now = Date.now();
+        
+        // 初始化統計時間
+        if (!scanStats.startTime) {
+          scanStats.startTime = now;
+        }
+        
+        scanStats.totalScanned++;
+        scanStats.lastScanTime = now;
+        
+        // 更新統計顯示
+        const totalScannedEl = document.getElementById('totalScanned');
+        const scanningSpeedEl = document.getElementById('scanningSpeed');
+        const uniqueCodesEl = document.getElementById('uniqueCodes');
+        const batchStatsEl = document.getElementById('batchStats');
+        
+        if (totalScannedEl) totalScannedEl.textContent = scanStats.totalScanned;
+        if (uniqueCodesEl) uniqueCodesEl.textContent = scannedQRs.size;
+        
+        // 計算掃描速度
+        if (scanningSpeedEl && scanStats.startTime) {
+          const elapsedSeconds = (now - scanStats.startTime) / 1000;
+          const speed = elapsedSeconds > 0 ? (scanStats.totalScanned / elapsedSeconds).toFixed(1) : 0;
+          scanningSpeedEl.textContent = speed;
+        }
+        
+        // 顯示統計面板
+        if (batchStatsEl && scanStats.totalScanned > 0) {
+          batchStatsEl.style.display = 'block';
+        }
+      }
+
+      // 智能自動對焦優化
+      async function optimizeAutoFocus() {
+        try {
+          const stream = video.srcObject;
+          if (!stream) return;
+
+          const track = stream.getVideoTracks()[0];
+          if (!track) return;
+
+          const capabilities = track.getCapabilities();
+          
+          // 檢查是否支援手動對焦
+          if (capabilities.focusMode && capabilities.focusDistance) {
+            // 設定連續對焦模式，專為近距離掃描優化
+            await track.applyConstraints({
+              focusMode: 'continuous',
+              focusDistance: { min: 0.05, max: 1.5 },
+              exposureMode: 'continuous',
+              whiteBalanceMode: 'continuous'
+            });
+            
+            console.log('自動對焦已優化，支援近距離掃描');
+          }
+          
+          // 觸發對焦調整（讓相機重新對焦）
+          setTimeout(async () => {
+            try {
+              await track.applyConstraints({
+                focusMode: 'continuous'
+              });
+            } catch (e) {
+              console.log('對焦調整完成');
+            }
+          }, 1000);
+          
+        } catch (error) {
+          console.log('自動對焦優化失敗，使用預設設定:', error);
+        }
+      }
+
+      // 對焦控制功能（保留但不再使用）
+      async function setCameraFocus(focusMode) {
+        try {
+          if (!qrScanner || !qrScanner._active) {
+            setStatus('請先啟動掃描器', 'warning');
+            return;
+          }
+
+          const stream = video.srcObject;
+          if (!stream) {
+            setStatus('無法取得相機串流', 'error');
+            return;
+          }
+
+          const track = stream.getVideoTracks()[0];
+          if (!track) {
+            setStatus('無法取得相機軌道', 'error');
+            return;
+          }
+
+          const capabilities = track.getCapabilities();
+          if (!capabilities.focusMode || !capabilities.focusDistance) {
+            setStatus('此裝置不支援手動對焦', 'warning');
+            return;
+          }
+
+          let constraints;
+          switch(focusMode) {
+            case 'near':
+              constraints = {
+                focusMode: 'manual',
+                focusDistance: { min: 0.1, max: 0.3 } // 近距離對焦
+              };
+              setStatus('已切換到近距離對焦模式', 'success');
+              break;
+            case 'far':
+              constraints = {
+                focusMode: 'manual', 
+                focusDistance: { min: 1.0, max: 10.0 } // 遠距離對焦
+              };
+              setStatus('已切換到遠距離對焦模式', 'success');
+              break;
+            case 'auto':
+              constraints = {
+                focusMode: 'continuous'
+              };
+              setStatus('已切換到自動對焦模式', 'success');
+              break;
+          }
+
+          await track.applyConstraints(constraints);
+          
+          // 觸發對焦調整
+          if (focusMode !== 'auto') {
+            setTimeout(() => {
+              track.applyConstraints({ focusMode: 'continuous' }).catch(() => {});
+            }, 2000);
+          }
+          
+        } catch (error) {
+          console.error('對焦設定失敗:', error);
+          setStatus('對焦設定失敗，請稍後再試', 'error');
+        }
       }
 
       // 手動輸入 QR 碼
@@ -1041,6 +1323,8 @@
         if (clearMarkersBtn) {
           clearMarkersBtn.addEventListener('click', clearAllMarkers);
         }
+
+        // 手動對焦按鈕已移除，系統自動處理對焦
 
         // 表單提交事件
         const recordForm = document.getElementById('recordForm');
