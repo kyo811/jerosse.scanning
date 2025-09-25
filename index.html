@@ -401,6 +401,7 @@
           <button id="multiScanBtn" type="button" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; margin: 5px; cursor: pointer; transition: all 0.3s ease; font-size: 16px;">📱 多QR碼掃描模式</button>
           <button id="testARBtn" type="button" style="background: linear-gradient(45deg, #FF9800, #F57C00); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🧪 測試AR標記</button>
           <button id="checkARBtn" type="button" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔍 檢查AR狀態</button>
+          <button id="initARBtn" type="button" style="background: linear-gradient(45deg, #607D8B, #455A64); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔧 手動初始化AR</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
         <div class="hint" style="color: #4CAF50; font-weight: bold;">
@@ -919,10 +920,8 @@
           await qrScanner.start();
           
           // 初始化AR標記系統
-          setTimeout(() => {
-            initARMarkers();
-            console.log('AR標記系統已初始化');
-          }, 500);
+          await initARMarkers();
+          console.log('AR標記系統已初始化');
           
           // 自動對焦優化
           await optimizeAutoFocus();
@@ -1547,35 +1546,30 @@
       }
 
       // 初始化AR標記系統
-      function initARMarkers() {
-        // 初始化傳統畫布
-        canvas = document.getElementById('arCanvas');
-        if (canvas) {
-          ctx = canvas.getContext('2d');
-          resizeARCanvas();
+      async function initARMarkers() {
+        try {
+          // 初始化傳統畫布
+          canvas = document.getElementById('arCanvas');
+          if (canvas) {
+            ctx = canvas.getContext('2d');
+            resizeARCanvas();
+            console.log('Canvas AR標記系統已初始化');
+          }
+          
+          // 初始化AR場景
+          await initARScene();
+          console.log('AR標記系統初始化完成');
+          
+        } catch (error) {
+          console.error('AR標記系統初始化失敗:', error);
+          setStatus('AR標記系統初始化失敗，將使用Canvas標記', 'warning');
         }
-        
-        // 初始化AR場景
-        initARScene();
       }
 
-      // 初始化蘋果原生AR場景
+      // 初始化AR場景
       async function initARScene() {
         try {
-          // 檢查WebXR支援
-          if (!navigator.xr) {
-            console.log('WebXR不支援，使用Canvas AR標記');
-            return;
-          }
-
-          // 檢查AR支援
-          const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
-          if (!isSupported) {
-            console.log('AR不支援，使用Canvas AR標記');
-            return;
-          }
-
-          // 創建AR場景容器
+          // 創建AR場景容器（總是創建，不管WebXR支援與否）
           const arContainer = document.createElement('div');
           arContainer.id = 'ar-container';
           arContainer.style.cssText = `
@@ -1588,21 +1582,29 @@
             z-index: 4;
           `;
           
-          // 創建WebXR場景
-          arContainer.innerHTML = `
-            <canvas id="ar-canvas" style="width: 100%; height: 100%;"></canvas>
-          `;
-          
           // 添加到預覽容器
           const previewContainer = document.getElementById('preview-container');
           if (previewContainer) {
             previewContainer.appendChild(arContainer);
-            arScene = arContainer.querySelector('#ar-canvas');
-            console.log('蘋果原生AR場景已初始化');
+            arScene = arContainer; // 使用容器本身作為AR場景
+            console.log('AR場景容器已創建');
+          }
+          
+          // 檢查WebXR支援（可選）
+          if (navigator.xr) {
+            try {
+              const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+              console.log('WebXR AR支援:', isSupported);
+            } catch (error) {
+              console.log('WebXR檢查失敗:', error);
+            }
+          } else {
+            console.log('WebXR不支援，使用Canvas AR標記');
           }
           
         } catch (error) {
-          console.log('AR初始化失敗，使用Canvas AR標記:', error);
+          console.error('AR場景初始化失敗:', error);
+          throw error;
         }
       }
 
@@ -1857,6 +1859,33 @@
           scanningTipsTimeout = setTimeout(() => {
             tipsElement.style.display = 'none';
           }, 3000);
+        }
+      }
+
+      // 手動初始化AR
+      async function manualInitAR() {
+        try {
+          setStatus('正在手動初始化AR系統...', 'info');
+          
+          // 清除現有的AR場景
+          if (arScene && arScene.parentNode) {
+            arScene.parentNode.removeChild(arScene);
+            arScene = null;
+          }
+          
+          // 重新初始化AR標記系統
+          await initARMarkers();
+          
+          setStatus('AR系統手動初始化完成！', 'success');
+          
+          // 檢查初始化結果
+          setTimeout(() => {
+            checkARStatus();
+          }, 1000);
+          
+        } catch (error) {
+          console.error('手動初始化AR失敗:', error);
+          setStatus('AR系統手動初始化失敗: ' + error.message, 'error');
         }
       }
 
@@ -2283,6 +2312,12 @@
         const checkARBtn = document.getElementById('checkARBtn');
         if (checkARBtn) {
           checkARBtn.addEventListener('click', checkARStatus);
+        }
+
+        // 手動初始化AR按鈕
+        const initARBtn = document.getElementById('initARBtn');
+        if (initARBtn) {
+          initARBtn.addEventListener('click', manualInitAR);
         }
 
         // 初始化多QR碼掃描模式
