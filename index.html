@@ -414,6 +414,7 @@
           <button id="checkARBtn" type="button" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔍 檢查AR狀態</button>
           <button id="initARBtn" type="button" style="background: linear-gradient(45deg, #607D8B, #455A64); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔧 手動初始化AR</button>
           <button id="startWebXRBtn" type="button" style="background: linear-gradient(45deg, #FF6B6B, #E53E3E); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🍎 啟動WebXR AR</button>
+          <button id="test3DCoordsBtn" type="button" style="background: linear-gradient(45deg, #00BCD4, #0097A7); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">📐 測試3D座標</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
         <div class="hint" style="color: #4CAF50; font-weight: bold;">
@@ -1789,40 +1790,57 @@
             direction: { x: 0, y: 0, z: -1, w: 0 }
           };
           
-          // 執行命中測試，找到QR碼在現實世界中的位置
-          const hitTestResults = await session.requestHitTest(ray, referenceSpace);
-          
-          if (hitTestResults && hitTestResults.length > 0) {
-            const hit = hitTestResults[0];
-            const pose = hit.getPose(referenceSpace);
+          // 使用正確的WebXR API執行命中測試
+          if (hitTestSource) {
+            // 將2D座標轉換為歸一化設備座標 (NDC)
+            const video = document.getElementById('video');
+            const videoWidth = video.videoWidth || video.clientWidth;
+            const videoHeight = video.videoHeight || video.clientHeight;
             
-            if (pose) {
-              const transform = pose.transform;
-              const position3D = transform.position;
-              const orientation3D = transform.orientation;
+            const normalizedX = (centerX / videoWidth) * 2 - 1;
+            const normalizedY = -((centerY / videoHeight) * 2 - 1);
+            
+            // 創建射線
+            const ray = new XRRay(
+              new DOMPoint(0, 0, 0), // 從相機中心發射
+              new DOMPoint(normalizedX, normalizedY, -1) // 指向QR碼方向
+            );
+            
+            // 執行命中測試
+            const hitTestResults = await hitTestSource.requestHitTest(ray, referenceSpace);
+            
+            if (hitTestResults && hitTestResults.length > 0) {
+              const hit = hitTestResults[0];
+              const pose = hit.getPose(referenceSpace);
               
-              // 創建AR錨點，將標記固定在現實世界中
-              const anchor = await createARAnchor(position3D, orientation3D, referenceSpace);
-              
-              const coordinates3D = {
-                x: position3D.x,
-                y: position3D.y,
-                z: position3D.z,
-                orientation: {
-                  x: orientation3D.x,
-                  y: orientation3D.y,
-                  z: orientation3D.z,
-                  w: orientation3D.w
-                },
-                type: '3D_REAL_WORLD',
-                timestamp: Date.now(),
-                confidence: hit.confidence || 1.0,
-                anchor: anchor,
-                distance: calculateDistance(position3D)
-              };
-              
-              console.log('現實世界3D座標記錄成功:', coordinates3D);
-              return coordinates3D;
+              if (pose) {
+                const transform = pose.transform;
+                const position3D = transform.position;
+                const orientation3D = transform.orientation;
+                
+                // 創建AR錨點，將標記固定在現實世界中
+                const anchor = await createARAnchor(position3D, orientation3D, referenceSpace);
+                
+                const coordinates3D = {
+                  x: position3D.x,
+                  y: position3D.y,
+                  z: position3D.z,
+                  orientation: {
+                    x: orientation3D.x,
+                    y: orientation3D.y,
+                    z: orientation3D.z,
+                    w: orientation3D.w
+                  },
+                  type: '3D_REAL_WORLD',
+                  timestamp: Date.now(),
+                  confidence: hit.confidence || 1.0,
+                  anchor: anchor,
+                  distance: calculateDistance(position3D)
+                };
+                
+                console.log('現實世界3D座標記錄成功:', coordinates3D);
+                return coordinates3D;
+              }
             }
           }
           
@@ -1845,7 +1863,14 @@
             }
           }
           
-          // 如果都失敗，返回2D座標
+          // 如果都失敗，嘗試使用設備感測器估算3D位置
+          const sensor3D = await estimate3DWithSensors(position, size);
+          if (sensor3D) {
+            console.log('使用設備感測器估算3D位置成功:', sensor3D);
+            return sensor3D;
+          }
+          
+          // 最後返回2D座標
           console.log('現實世界定位失敗，使用2D座標');
           return {
             x: position.x,
@@ -1872,10 +1897,11 @@
       async function createARAnchor(position, orientation, referenceSpace) {
         try {
           if (window.realWorldAR && window.realWorldAR.session.createAnchor) {
-            const anchor = await window.realWorldAR.session.createAnchor({
-              position: position,
-              orientation: orientation
-            }, referenceSpace);
+            // 創建XRRigidTransform
+            const transform = new XRRigidTransform(position, orientation);
+            
+            // 創建AR錨點
+            const anchor = await window.realWorldAR.session.createAnchor(transform, referenceSpace);
             
             console.log('AR錨點創建成功:', anchor);
             return anchor;
@@ -1905,6 +1931,105 @@
           console.error('深度感測失敗:', error);
         }
         return null;
+      }
+
+      // 使用設備感測器估算3D位置
+      async function estimate3DWithSensors(position, size) {
+        try {
+          // 檢查是否支援設備方向API
+          if (!window.DeviceOrientationEvent) {
+            console.log('設備方向API不支援');
+            return null;
+          }
+
+          // 請求設備方向權限
+          if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission !== 'granted') {
+              console.log('設備方向權限被拒絕');
+              return null;
+            }
+          }
+
+          // 獲取設備方向資訊
+          return new Promise((resolve) => {
+            const handleOrientation = (event) => {
+              // 計算QR碼在螢幕中的位置
+              const centerX = position.x + size.width / 2;
+              const centerY = position.y + size.height / 2;
+              
+              // 獲取螢幕尺寸
+              const screenWidth = window.innerWidth;
+              const screenHeight = window.innerHeight;
+              
+              // 將2D座標轉換為3D估算
+              const normalizedX = (centerX / screenWidth) - 0.5;
+              const normalizedY = (centerY / screenHeight) - 0.5;
+              
+              // 使用設備方向估算距離
+              const estimatedDistance = estimateDistanceFromQRSize(size);
+              
+              // 計算3D位置（基於設備方向和QR碼位置）
+              const x3D = normalizedX * estimatedDistance * 0.5;
+              const y3D = -normalizedY * estimatedDistance * 0.5;
+              const z3D = estimatedDistance;
+              
+              // 使用設備方向計算旋轉
+              const alpha = event.alpha || 0; // Z軸旋轉
+              const beta = event.beta || 0;   // X軸旋轉
+              const gamma = event.gamma || 0; // Y軸旋轉
+              
+              const coordinates3D = {
+                x: x3D,
+                y: y3D,
+                z: z3D,
+                orientation: {
+                  x: Math.sin(beta * Math.PI / 180),
+                  y: Math.sin(gamma * Math.PI / 180),
+                  z: Math.sin(alpha * Math.PI / 180),
+                  w: Math.cos(alpha * Math.PI / 180)
+                },
+                type: '3D_SENSOR_ESTIMATED',
+                timestamp: Date.now(),
+                confidence: 0.7,
+                distance: estimatedDistance,
+                deviceOrientation: { alpha, beta, gamma }
+              };
+              
+              // 移除事件監聽器
+              window.removeEventListener('deviceorientation', handleOrientation);
+              
+              resolve(coordinates3D);
+            };
+            
+            // 添加事件監聽器
+            window.addEventListener('deviceorientation', handleOrientation, true);
+            
+            // 5秒後超時
+            setTimeout(() => {
+              window.removeEventListener('deviceorientation', handleOrientation);
+              resolve(null);
+            }, 5000);
+          });
+          
+        } catch (error) {
+          console.error('設備感測器3D估算失敗:', error);
+          return null;
+        }
+      }
+
+      // 根據QR碼大小估算距離
+      function estimateDistanceFromQRSize(size) {
+        // QR碼的標準大小約為25mm
+        const standardQRSize = 25; // mm
+        const standardDistance = 300; // mm (30cm)
+        
+        // 根據QR碼在螢幕中的大小估算距離
+        const screenSize = Math.max(size.width, size.height);
+        const estimatedDistance = (standardQRSize * standardDistance) / screenSize;
+        
+        // 限制距離範圍 (10cm - 2m)
+        return Math.max(100, Math.min(2000, estimatedDistance)) / 1000; // 轉換為米
       }
 
       // 創建現實世界AR標記
@@ -2327,6 +2452,54 @@
         } catch (error) {
           console.error('啟動WebXR AR會話失敗:', error);
           setStatus(`WebXR AR啟動失敗: ${error.message}`, 'error');
+        }
+      }
+
+      // 測試3D座標記錄
+      async function test3DCoordinates() {
+        try {
+          setStatus('正在測試3D座標記錄...', 'info');
+          
+          // 創建測試位置
+          const testPosition = {
+            x: 320, // 螢幕中央
+            y: 240,
+            width: 100,
+            height: 100
+          };
+          
+          // 測試3D座標記錄
+          const coordinates3D = await record3DCoordinates(testPosition, { width: 100, height: 100 });
+          
+          // 顯示結果
+          console.log('3D座標測試結果:', coordinates3D);
+          
+          if (coordinates3D.type.includes('3D')) {
+            setStatus(`3D座標記錄成功！類型: ${coordinates3D.type}, 距離: ${coordinates3D.distance?.toFixed(2)}m`, 'success');
+            
+            // 顯示詳細資訊
+            const details = `
+3D座標測試成功：
+- 類型: ${coordinates3D.type}
+- 位置: (${coordinates3D.x?.toFixed(3)}, ${coordinates3D.y?.toFixed(3)}, ${coordinates3D.z?.toFixed(3)})
+- 距離: ${coordinates3D.distance?.toFixed(3)}m
+- 置信度: ${coordinates3D.confidence?.toFixed(2)}
+- 時間戳: ${new Date(coordinates3D.timestamp).toLocaleTimeString()}
+            `;
+            console.log(details);
+            
+            // 如果有設備方向資訊
+            if (coordinates3D.deviceOrientation) {
+              console.log('設備方向:', coordinates3D.deviceOrientation);
+            }
+            
+          } else {
+            setStatus(`3D座標記錄失敗，使用${coordinates3D.type}座標`, 'warning');
+          }
+          
+        } catch (error) {
+          console.error('3D座標測試失敗:', error);
+          setStatus(`3D座標測試失敗: ${error.message}`, 'error');
         }
       }
 
@@ -2853,6 +3026,12 @@
         const startWebXRBtn = document.getElementById('startWebXRBtn');
         if (startWebXRBtn) {
           startWebXRBtn.addEventListener('click', startWebXRSession);
+        }
+
+        // 測試3D座標按鈕
+        const test3DCoordsBtn = document.getElementById('test3DCoordsBtn');
+        if (test3DCoordsBtn) {
+          test3DCoordsBtn.addEventListener('click', test3DCoordinates);
         }
 
         // 初始化多QR碼掃描模式
