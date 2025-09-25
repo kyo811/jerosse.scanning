@@ -400,6 +400,7 @@
         <div class="row">
           <button id="multiScanBtn" type="button" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; margin: 5px; cursor: pointer; transition: all 0.3s ease; font-size: 16px;">📱 多QR碼掃描模式</button>
           <button id="testARBtn" type="button" style="background: linear-gradient(45deg, #FF9800, #F57C00); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🧪 測試AR標記</button>
+          <button id="checkARBtn" type="button" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔍 檢查AR狀態</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
         <div class="hint" style="color: #4CAF50; font-weight: bold;">
@@ -1859,40 +1860,88 @@
         }
       }
 
+      // 檢查AR狀態
+      function checkARStatus() {
+        const status = {
+          arScene: !!arScene,
+          canvas: !!canvas,
+          ctx: !!ctx,
+          video: !!video,
+          qrScanner: !!qrScanner,
+          arMarkers: arMarkerElements.size,
+          scanOrder: scanOrder.length,
+          multiScanMode: multiScanMode
+        };
+        
+        console.log('AR狀態檢查:', status);
+        
+        let statusText = 'AR系統狀態檢查：\n';
+        statusText += `✅ AR場景: ${status.arScene ? '已初始化' : '未初始化'}\n`;
+        statusText += `✅ Canvas: ${status.canvas ? '已創建' : '未創建'}\n`;
+        statusText += `✅ 相機: ${status.video ? '已啟動' : '未啟動'}\n`;
+        statusText += `✅ 掃描器: ${status.qrScanner ? '已啟動' : '未啟動'}\n`;
+        statusText += `✅ AR標記: ${status.arMarkers} 個\n`;
+        statusText += `✅ 掃描順序: ${status.scanOrder} 個\n`;
+        statusText += `✅ 多QR模式: ${status.multiScanMode ? '啟用' : '停用'}`;
+        
+        setStatus(statusText, 'info');
+        
+        // 檢查WebXR支援
+        if (navigator.xr) {
+          navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+            setStatus(`WebXR AR支援: ${supported ? '✅ 支援' : '❌ 不支援'}`, supported ? 'success' : 'warning');
+          });
+        } else {
+          setStatus('WebXR API: ❌ 不支援', 'warning');
+        }
+      }
+
       // 測試AR標記功能
       function testARMarkers() {
-        if (!canvas || !ctx) {
-          setStatus('AR標記系統未初始化', 'error');
+        if (!arScene) {
+          setStatus('AR場景未初始化，請先啟動掃描器', 'error');
           return;
         }
         
-        // 添加多個測試標記來測試順序
+        // 添加多個測試AR標記來測試順序
         const testPositions = [
           { x: 100, y: 100, qr: 'TEST001' },
           { x: 200, y: 150, qr: 'TEST002' },
           { x: 150, y: 200, qr: 'TEST003' }
         ];
         
+        setStatus('開始測試AR標記，請觀察相機畫面', 'info');
+        
         testPositions.forEach((pos, index) => {
           setTimeout(() => {
-            addQRMarker(pos.qr, { x: pos.x, y: pos.y }, { width: 80, height: 80 });
+            addARMarker(pos.qr, { x: pos.x, y: pos.y }, { width: 80, height: 80 });
             setStatus(`已添加測試AR標記 ${pos.qr}，順序: ${scanCounter}`, 'success');
           }, index * 1000);
         });
         
-        // 5秒後清除所有測試標記
+        // 8秒後清除所有測試標記
         setTimeout(() => {
           testPositions.forEach(pos => {
+            // 清除AR標記元素
+            const marker = arMarkerElements.get(pos.qr);
+            if (marker && marker.parentNode) {
+              marker.parentNode.removeChild(marker);
+            }
+            arMarkerElements.delete(pos.qr);
+            
+            // 清除記錄
             qrMarkers.delete(pos.qr);
             const orderIndex = scanOrder.findIndex(item => item.qrCode === pos.qr);
             if (orderIndex > -1) {
               scanOrder.splice(orderIndex, 1);
             }
           });
-          drawARMarkers();
+          
+          // 重置計數器
+          scanCounter = 0;
           updateScanOrderDisplay();
           setStatus('測試AR標記已清除', 'info');
-        }, 5000);
+        }, 8000);
       }
 
       // 切換多QR碼掃描模式
@@ -2228,6 +2277,12 @@
         const testARBtn = document.getElementById('testARBtn');
         if (testARBtn) {
           testARBtn.addEventListener('click', testARMarkers);
+        }
+
+        // 檢查AR狀態按鈕
+        const checkARBtn = document.getElementById('checkARBtn');
+        if (checkARBtn) {
+          checkARBtn.addEventListener('click', checkARStatus);
         }
 
         // 初始化多QR碼掃描模式
