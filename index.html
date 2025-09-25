@@ -253,30 +253,41 @@
           <button id="refocusBtn" type="button" style="background: linear-gradient(45deg, #FF9800, #F57C00); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔍 重新對焦</button>
         </div>
         <div class="row">
-          <button id="highSensitivityBtn" type="button" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">⚡ 高靈敏度模式</button>
-          <button id="normalSensitivityBtn" type="button" style="background: linear-gradient(45deg, #2196F3, #1976D2); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🎯 標準模式</button>
-        </div>
-        <div class="row">
-          <button id="autoFocusModeBtn" type="button" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🎯 智能對焦模式</button>
-          <button id="longRangeModeBtn" type="button" style="background: linear-gradient(45deg, #FF5722, #D84315); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔭 遠距離模式</button>
+          <button id="multiScanBtn" type="button" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; margin: 5px; cursor: pointer; transition: all 0.3s ease; font-size: 16px;">📱 多QR碼掃描模式</button>
+          <button id="testARBtn" type="button" style="background: linear-gradient(45deg, #FF9800, #F57C00); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🧪 測試AR標記</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
         <div class="hint" style="color: #4CAF50; font-weight: bold;">
-          💡 超強對焦：支援10公分到100公尺距離掃描，遠距離模式可識別超小QR碼
+          💡 多QR碼掃描：一次可識別10個以上QR碼，自動對焦並標記已掃描項目
         </div>
         <div id="scanningTips" class="hint" style="color: #FF9800; font-weight: bold; display: none;">
           💡 掃描提示：請保持QR碼清晰可見，避免手抖，可嘗試調整距離
         </div>
         
+        <!-- 批量掃描統計 -->
+        <div id="batchStats" class="batch-stats" style="display: none;">
+          <div class="stats-card">
+            <div class="stats-grid">
+              <div class="stat-item">
+                <div class="stat-number" id="totalScanned">0</div>
+                <div class="stat-label">已掃描</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-number" id="scanningSpeed">0</div>
+                <div class="stat-label">掃描/秒</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-number" id="uniqueCodes">0</div>
+                <div class="stat-label">唯一QR碼</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 掃描記錄區域 -->
         <div id="scannedList" class="scanned-list">
           <p class="small">尚未掃描任何 QR 碼</p>
         </div>
-        
-        <!-- 批量掃描統計 -->
-        <div id="batchStats" class="batch-stats" style="display: none;">
-          <div class="stats-card">
-            <h4>📊 批量掃描統計</h4>
             <div class="stats-grid">
               <div class="stat-item">
                 <span class="stat-number" id="totalScanned">0</span>
@@ -393,10 +404,8 @@
         lastScanTime: null
       };
       
-      // 掃描靈敏度模式
-      let sensitivityMode = 'high'; // 'high' 或 'normal'
-      let autoFocusMode = true; // 智能對焦模式
-      let longRangeMode = false; // 遠距離模式
+      // 多QR碼掃描模式
+      let multiScanMode = true; // 多QR碼掃描模式
       
       // 掃描狀態追蹤
       let scanAttempts = 0;
@@ -715,7 +724,7 @@
               highlightScanRegion: false, // 關閉掃描區域高亮，避免干擾多QR碼識別
               highlightCodeOutline: true, // 保留QR碼邊框高亮
               preferredCamera: 'environment', // 優先使用後置鏡頭
-              maxScansPerSecond: longRangeMode ? 40 : (sensitivityMode === 'high' ? 30 : 15), // 遠距離模式使用更高頻率
+              maxScansPerSecond: 50, // 極高掃描頻率，快速識別多QR碼
               calculateScanRegion: function(video) {
                 // 使用全畫面掃描，支援多QR碼識別和超遠距離掃描
                 return {
@@ -727,55 +736,25 @@
               },
               // 優化掃描參數，支援超遠距離識別
               preferredResolution: { width: 4096, height: 2304 },
-              // 動態靈敏度設定，根據模式調整
-              qrCodeDetector: longRangeMode ? {
-                minFeatureSize: 1, // 極低最小特徵尺寸，支援超遠距離
-                maxNumberOfFeatures: 15000, // 極高最大特徵數量
-                scanInterval: 15, // 極低掃描間隔，超快響應
-                minQRCodeSize: 3, // 極低最小QR碼尺寸要求，支援超遠距離
-                detectionThreshold: 0.02, // 極低檢測閾值
-                rotationTolerance: 75, // 增加旋轉容忍度
-                blurTolerance: 0.95, // 極高模糊容忍度
-                // 遠距離優化參數
-                scaleFactor: 1.05, // 縮放因子
-                minNeighbors: 2, // 最小鄰居數
-                // 多尺度檢測
-                multiScale: true,
-                // 邊緣檢測優化
-                edgeThreshold: 30,
-                // 對比度增強
-                contrastEnhancement: true,
-                // 遠距離特殊優化
-                longRangeOptimization: true,
-                // 圖像增強
-                imageEnhancement: true
-              } : sensitivityMode === 'high' ? {
-                minFeatureSize: 1, // 極低最小特徵尺寸，支援超遠距離
-                maxNumberOfFeatures: 10000, // 極高最大特徵數量
-                scanInterval: 20, // 極低掃描間隔，超快響應
-                minQRCodeSize: 5, // 極低最小QR碼尺寸要求，支援超遠距離
-                detectionThreshold: 0.05, // 極低檢測閾值
-                rotationTolerance: 60, // 增加旋轉容忍度
-                blurTolerance: 0.9, // 極高模糊容忍度
-                // 遠距離優化參數
-                scaleFactor: 1.1, // 縮放因子
-                minNeighbors: 3, // 最小鄰居數
-                // 多尺度檢測
-                multiScale: true,
-                // 邊緣檢測優化
-                edgeThreshold: 50,
-                // 對比度增強
-                contrastEnhancement: true
-              } : {
-                minFeatureSize: 2, // 標準最小特徵尺寸
-                maxNumberOfFeatures: 5000, // 標準最大特徵數量
-                scanInterval: 30, // 標準掃描間隔
-                minQRCodeSize: 10, // 標準最小QR碼尺寸要求
-                detectionThreshold: 0.1, // 標準檢測閾值
-                rotationTolerance: 45, // 標準旋轉容忍度
-                blurTolerance: 0.8, // 標準模糊容忍度
-                multiScale: true,
-                contrastEnhancement: true
+              // 多QR碼快速識別優化
+              qrCodeDetector: {
+                minFeatureSize: 1, // 極低最小特徵尺寸
+                maxNumberOfFeatures: 20000, // 極高最大特徵數量
+                scanInterval: 10, // 極低掃描間隔，超快響應
+                minQRCodeSize: 8, // 支援小QR碼識別
+                detectionThreshold: 0.03, // 極低檢測閾值
+                rotationTolerance: 90, // 支援任意角度
+                blurTolerance: 0.9, // 高模糊容忍度
+                // 多QR碼優化
+                multiQRDetection: true, // 啟用多QR碼檢測
+                parallelProcessing: true, // 並行處理
+                // 快速識別優化
+                fastMode: true, // 快速模式
+                skipValidation: false, // 保持驗證
+                // 圖像處理優化
+                imageEnhancement: true,
+                contrastBoost: 1.2,
+                brightnessAdjust: 0.1
               }
             }
           );
@@ -784,7 +763,10 @@
           await qrScanner.start();
           
           // 初始化AR標記系統
-          initARMarkers();
+          setTimeout(() => {
+            initARMarkers();
+            console.log('AR標記系統已初始化');
+          }, 500);
           
           // 自動對焦優化
           await optimizeAutoFocus();
@@ -852,8 +834,8 @@
         // 更新掃描統計
         updateScanStats();
         
-        // 智能對焦到QR碼位置（如果啟用）
-        if (autoFocusMode) {
+        // 智能對焦到QR碼位置（多QR碼模式自動啟用）
+        if (multiScanMode) {
           autoFocusToQR(result);
         }
         
@@ -1421,22 +1403,63 @@
       function resizeARCanvas() {
         if (canvas && video) {
           const rect = video.getBoundingClientRect();
+          const videoWidth = video.videoWidth || rect.width;
+          const videoHeight = video.videoHeight || rect.height;
+          
+          // 設定畫布實際尺寸
           canvas.width = rect.width;
           canvas.height = rect.height;
+          
+          // 設定畫布顯示尺寸
           canvas.style.width = rect.width + 'px';
           canvas.style.height = rect.height + 'px';
+          
+          console.log('AR畫布已調整:', {
+            canvasSize: { width: canvas.width, height: canvas.height },
+            videoSize: { width: videoWidth, height: videoHeight },
+            displaySize: { width: rect.width, height: rect.height }
+          });
         }
       }
 
       // 添加QR碼AR標記
       function addQRMarker(qrCode, position, size) {
         if (!qrMarkers.has(qrCode)) {
+          // 轉換座標到畫布座標系統
+          const canvasRect = canvas.getBoundingClientRect();
+          const videoRect = video.getBoundingClientRect();
+          
+          // 計算縮放比例
+          const scaleX = canvasRect.width / (video.videoWidth || videoRect.width);
+          const scaleY = canvasRect.height / (video.videoHeight || videoRect.height);
+          
+          const canvasPosition = {
+            x: position.x * scaleX,
+            y: position.y * scaleY
+          };
+          
+          const canvasSize = {
+            width: size.width * scaleX,
+            height: size.height * scaleY
+          };
+          
           qrMarkers.set(qrCode, {
-            position: position,
-            size: size,
+            position: canvasPosition,
+            size: canvasSize,
             timestamp: Date.now(),
             scanned: true
           });
+          
+          console.log('添加AR標記:', {
+            qrCode,
+            originalPosition: position,
+            originalSize: size,
+            canvasPosition,
+            canvasSize,
+            scaleX,
+            scaleY
+          });
+          
           drawARMarkers();
         }
       }
@@ -1448,38 +1471,60 @@
         // 清除畫布
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
+        console.log('繪製AR標記，總數:', qrMarkers.size);
+        
         // 繪製所有標記
         qrMarkers.forEach((marker, qrCode) => {
           const { position, size } = marker;
           
-          // 繪製綠色圓圈標記（已掃描）
-          ctx.strokeStyle = '#4CAF50';
-          ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';
-          ctx.lineWidth = 3;
-          
           const centerX = position.x + size.width / 2;
           const centerY = position.y + size.height / 2;
-          const radius = Math.max(size.width, size.height) / 2 + 10;
+          const radius = Math.max(size.width, size.height) / 2 + 15;
           
+          // 繪製外圈（更明顯）
+          ctx.strokeStyle = '#FF0000';
+          ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+          ctx.lineWidth = 4;
           ctx.beginPath();
           ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
           ctx.fill();
           ctx.stroke();
           
-          // 繪製對勾標記
-          ctx.strokeStyle = '#4CAF50';
-          ctx.lineWidth = 4;
+          // 繪製內圈（綠色）
+          ctx.strokeStyle = '#00FF00';
+          ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+          ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.moveTo(centerX - radius/3, centerY);
-          ctx.lineTo(centerX - radius/6, centerY + radius/3);
-          ctx.lineTo(centerX + radius/3, centerY - radius/3);
+          ctx.arc(centerX, centerY, radius - 5, 0, 2 * Math.PI);
+          ctx.fill();
           ctx.stroke();
           
-          // 繪製QR碼編號
-          ctx.fillStyle = '#4CAF50';
-          ctx.font = 'bold 12px Arial';
+          // 繪製對勾標記（更粗更明顯）
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.moveTo(centerX - radius/2, centerY);
+          ctx.lineTo(centerX - radius/4, centerY + radius/4);
+          ctx.lineTo(centerX + radius/2, centerY - radius/4);
+          ctx.stroke();
+          
+          // 繪製QR碼編號（更大更明顯）
+          ctx.fillStyle = '#FFFFFF';
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2;
+          ctx.font = 'bold 16px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText(qrCode, centerX, centerY + radius + 20);
+          ctx.strokeText(qrCode, centerX, centerY + radius + 25);
+          ctx.fillText(qrCode, centerX, centerY + radius + 25);
+          
+          console.log('繪製標記:', {
+            qrCode,
+            centerX,
+            centerY,
+            radius,
+            position,
+            size
+          });
         });
       }
 
@@ -1507,63 +1552,41 @@
         }
       }
 
-      // 切換遠距離模式
-      function toggleLongRangeMode() {
-        longRangeMode = !longRangeMode;
-        const btn = document.getElementById('longRangeModeBtn');
-        
-        if (longRangeMode) {
-          btn.style.background = 'linear-gradient(45deg, #FF5722, #D84315)';
-          btn.textContent = '🔭 遠距離模式';
-          setStatus('🔭 遠距離模式已啟用，優化超遠距離掃描', 'success');
-          
-          // 自動切換到高靈敏度模式
-          switchSensitivityMode('high');
-        } else {
-          btn.style.background = 'linear-gradient(45deg, #9E9E9E, #757575)';
-          btn.textContent = '📱 標準距離模式';
-          setStatus('📱 標準距離模式已啟用，平衡近遠距離掃描', 'info');
+      // 測試AR標記功能
+      function testARMarkers() {
+        if (!canvas || !ctx) {
+          setStatus('AR標記系統未初始化', 'error');
+          return;
         }
+        
+        // 添加測試標記
+        const testPosition = { x: 100, y: 100 };
+        const testSize = { width: 80, height: 80 };
+        addQRMarker('TEST123', testPosition, testSize);
+        
+        setStatus('已添加測試AR標記，請檢查相機畫面', 'success');
+        
+        // 3秒後清除測試標記
+        setTimeout(() => {
+          qrMarkers.delete('TEST123');
+          drawARMarkers();
+          setStatus('測試AR標記已清除', 'info');
+        }, 3000);
       }
 
-      // 切換智能對焦模式
-      function toggleAutoFocusMode() {
-        autoFocusMode = !autoFocusMode;
-        const btn = document.getElementById('autoFocusModeBtn');
+      // 切換多QR碼掃描模式
+      function toggleMultiScanMode() {
+        multiScanMode = !multiScanMode;
+        const btn = document.getElementById('multiScanBtn');
         
-        if (autoFocusMode) {
-          btn.style.background = 'linear-gradient(45deg, #9C27B0, #7B1FA2)';
-          btn.textContent = '🎯 智能對焦模式';
-          setStatus('🎯 智能對焦模式已啟用，自動對焦到QR碼位置', 'success');
+        if (multiScanMode) {
+          btn.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+          btn.textContent = '📱 多QR碼掃描模式';
+          setStatus('📱 多QR碼掃描模式已啟用，可同時識別多個QR碼', 'success');
         } else {
           btn.style.background = 'linear-gradient(45deg, #9E9E9E, #757575)';
-          btn.textContent = '⏸️ 手動對焦模式';
-          setStatus('⏸️ 手動對焦模式已啟用，需要手動調整對焦', 'info');
-        }
-      }
-
-      // 切換掃描靈敏度模式
-      function switchSensitivityMode(mode) {
-        sensitivityMode = mode;
-        
-        const highBtn = document.getElementById('highSensitivityBtn');
-        const normalBtn = document.getElementById('normalSensitivityBtn');
-        
-        if (mode === 'high') {
-          highBtn.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
-          normalBtn.style.background = 'linear-gradient(45deg, #9E9E9E, #757575)';
-          setStatus('⚡ 已切換到高靈敏度模式，快速響應掃描', 'success');
-        } else {
-          highBtn.style.background = 'linear-gradient(45deg, #9E9E9E, #757575)';
-          normalBtn.style.background = 'linear-gradient(45deg, #2196F3, #1976D2)';
-          setStatus('🎯 已切換到標準模式，平衡性能與靈敏度', 'info');
-        }
-        
-        // 如果掃描器正在運行，重新啟動以應用新設定
-        if (qrScanner && qrScanner._active) {
-          setTimeout(() => {
-            setStatus('🔄 已應用新的靈敏度設定', 'info');
-          }, 1000);
+          btn.textContent = '📱 單一QR碼掃描模式';
+          setStatus('📱 單一QR碼掃描模式已啟用，一次掃描一個QR碼', 'info');
         }
       }
 
@@ -1874,36 +1897,20 @@
           });
         }
 
-        // 靈敏度模式按鈕
-        const highSensitivityBtn = document.getElementById('highSensitivityBtn');
-        const normalSensitivityBtn = document.getElementById('normalSensitivityBtn');
-        
-        if (highSensitivityBtn) {
-          highSensitivityBtn.addEventListener('click', () => {
-            switchSensitivityMode('high');
-          });
-        }
-        
-        if (normalSensitivityBtn) {
-          normalSensitivityBtn.addEventListener('click', () => {
-            switchSensitivityMode('normal');
-          });
+        // 多QR碼掃描模式按鈕
+        const multiScanBtn = document.getElementById('multiScanBtn');
+        if (multiScanBtn) {
+          multiScanBtn.addEventListener('click', toggleMultiScanMode);
         }
 
-        // 智能對焦模式按鈕
-        const autoFocusModeBtn = document.getElementById('autoFocusModeBtn');
-        if (autoFocusModeBtn) {
-          autoFocusModeBtn.addEventListener('click', toggleAutoFocusMode);
+        // 測試AR標記按鈕
+        const testARBtn = document.getElementById('testARBtn');
+        if (testARBtn) {
+          testARBtn.addEventListener('click', testARMarkers);
         }
 
-        // 遠距離模式按鈕
-        const longRangeModeBtn = document.getElementById('longRangeModeBtn');
-        if (longRangeModeBtn) {
-          longRangeModeBtn.addEventListener('click', toggleLongRangeMode);
-        }
-
-        // 初始化靈敏度按鈕狀態
-        switchSensitivityMode('high');
+        // 初始化多QR碼掃描模式
+        toggleMultiScanMode();
         
         // 監聽視窗大小變化，重新調整AR畫布
         window.addEventListener('resize', () => {
