@@ -69,6 +69,14 @@
       }
       
       /* 蘋果原生AR標記樣式 */
+      #preview-container {
+        position: relative;
+        display: inline-block;
+        width: 100%;
+        max-width: 640px;
+        margin: 0 auto;
+      }
+
       .ar-marker-3d {
         position: absolute;
         pointer-events: none;
@@ -997,8 +1005,11 @@
           autoFocusToQR(result);
         }
         
-        // 添加真正的AR標記
+        // 添加AR標記（即使沒有location資訊也嘗試添加）
+        console.log('QR掃描結果:', result);
+        
         if (result.location) {
+          // 有位置資訊，使用精確位置
           const qrLocation = result.location;
           const position = {
             x: Math.min(qrLocation.topLeftCorner.x, qrLocation.bottomLeftCorner.x),
@@ -1009,6 +1020,22 @@
             height: Math.abs(qrLocation.bottomLeftCorner.y - qrLocation.topLeftCorner.y)
           };
           addARMarker(qrNumber, position, size);
+        } else {
+          // 沒有位置資訊，在相機畫面中央添加AR標記
+          console.log('沒有QR碼位置資訊，在中央添加AR標記');
+          const video = document.getElementById('video');
+          if (video) {
+            const videoRect = video.getBoundingClientRect();
+            const position = {
+              x: videoRect.width / 2,
+              y: videoRect.height / 2
+            };
+            const size = {
+              width: 100,
+              height: 100
+            };
+            addARMarker(qrNumber, position, size);
+          }
         }
         
         // 更新 QR 內容欄位
@@ -1654,24 +1681,24 @@
           arMarker.id = `ar-marker-${qrCode}`;
           arMarker.className = 'ar-marker-3d';
           
-          // 計算AR標記的實際位置（相對於預覽容器）
-          const videoRect = video.getBoundingClientRect();
-          const previewContainer = document.getElementById('preview-container');
-          const containerRect = previewContainer.getBoundingClientRect();
+          // 計算AR標記的相對位置（使用百分比，不依賴getBoundingClientRect）
+          const video = document.getElementById('video');
+          const videoWidth = video.videoWidth || video.clientWidth;
+          const videoHeight = video.videoHeight || video.clientHeight;
           
-          // QR碼在video中的相對位置
+          // QR碼在video中的相對位置（百分比）
           const qrCenterX = position.x + size.width / 2;
           const qrCenterY = position.y + size.height / 2;
           
-          // 轉換到預覽容器的絕對位置
-          const absoluteX = qrCenterX + (videoRect.left - containerRect.left);
-          const absoluteY = qrCenterY + (videoRect.top - containerRect.top);
+          // 轉換為百分比位置
+          const percentX = (qrCenterX / videoWidth) * 100;
+          const percentY = (qrCenterY / videoHeight) * 100;
           
-          // 設定AR標記位置和樣式
+          // 設定AR標記位置和樣式（使用百分比定位）
           arMarker.style.cssText = `
             position: absolute;
-            left: ${absoluteX}px;
-            top: ${absoluteY}px;
+            left: ${percentX}%;
+            top: ${percentY}%;
             transform: translate(-50%, -50%);
             pointer-events: none;
             z-index: 1000;
@@ -1682,9 +1709,8 @@
             qrPosition: { x: position.x, y: position.y },
             qrSize: size,
             qrCenter: { x: qrCenterX, y: qrCenterY },
-            videoRect: { left: videoRect.left, top: videoRect.top },
-            containerRect: { left: containerRect.left, top: containerRect.top },
-            absolutePosition: { x: absoluteX, y: absoluteY }
+            videoDimensions: { width: videoWidth, height: videoHeight },
+            percentPosition: { x: percentX, y: percentY }
           });
           
           // 創建AR標記內容
@@ -1981,8 +2007,11 @@
         `;
         testMarker.textContent = '1';
         
-        // 添加到預覽容器
+        // 添加到預覽容器（預覽容器應該是position: relative）
         previewContainer.appendChild(testMarker);
+        
+        // 確保預覽容器有正確的定位
+        previewContainer.style.position = 'relative';
         
         setStatus('簡單測試標記已添加到相機畫面中央', 'success');
         
@@ -2002,27 +2031,25 @@
           return;
         }
         
-        // 獲取相機畫面的實際位置
+        // 使用百分比位置，不依賴getBoundingClientRect
         const video = document.getElementById('video');
-        const videoRect = video.getBoundingClientRect();
         const previewContainer = document.getElementById('preview-container');
-        const containerRect = previewContainer.getBoundingClientRect();
         
-        // 在相機畫面的不同位置添加測試標記
+        // 在相機畫面的不同位置添加測試標記（使用百分比）
         const testPositions = [
           { 
-            x: videoRect.width * 0.25 - containerRect.left, 
-            y: videoRect.height * 0.25 - containerRect.top, 
+            percentX: 25, 
+            percentY: 25, 
             qr: 'TEST001' 
           },
           { 
-            x: videoRect.width * 0.75 - containerRect.left, 
-            y: videoRect.height * 0.25 - containerRect.top, 
+            percentX: 75, 
+            percentY: 25, 
             qr: 'TEST002' 
           },
           { 
-            x: videoRect.width * 0.5 - containerRect.left, 
-            y: videoRect.height * 0.75 - containerRect.top, 
+            percentX: 50, 
+            percentY: 75, 
             qr: 'TEST003' 
           }
         ];
@@ -2037,8 +2064,8 @@
             testMarker.className = 'ar-marker-3d';
             testMarker.style.cssText = `
               position: absolute;
-              left: ${pos.x}px;
-              top: ${pos.y}px;
+              left: ${pos.percentX}%;
+              top: ${pos.percentY}%;
               transform: translate(-50%, -50%);
               pointer-events: none;
               z-index: 1000;
@@ -2058,7 +2085,7 @@
             `;
             
             arScene.appendChild(testMarker);
-            setStatus(`已添加測試AR標記 ${pos.qr}，位置: (${pos.x}, ${pos.y})`, 'success');
+            setStatus(`已添加測試AR標記 ${pos.qr}，位置: (${pos.percentX}%, ${pos.percentY}%)`, 'success');
           }, index * 1000);
         });
         
