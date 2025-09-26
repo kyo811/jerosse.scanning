@@ -5,6 +5,136 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>3D座標掃描系統</title>
     <style>
+      /* 手機優化基礎樣式 */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: #333;
+        overflow-x: hidden;
+      }
+
+      .container {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 10px;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+        color: white;
+        padding: 10px 0;
+      }
+
+      .header h1 {
+        font-size: 1.8rem;
+        margin-bottom: 5px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      }
+
+      .header p {
+        font-size: 0.9rem;
+        opacity: 0.9;
+      }
+
+      .card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        margin-bottom: 15px;
+      }
+
+      .card h2 {
+        font-size: 1.3rem;
+        margin-bottom: 15px;
+        color: #333;
+        text-align: center;
+      }
+
+      /* 手機優化按鈕 */
+      .btn {
+        background: linear-gradient(45deg, #4CAF50, #45a049);
+        color: white;
+        border: none;
+        padding: 15px 25px;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        width: 100%;
+        margin: 5px 0;
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .btn.stop {
+        background: linear-gradient(45deg, #f44336, #d32f2f);
+        box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+      }
+
+      .btn.clear {
+        background: linear-gradient(45deg, #FF9800, #F57C00);
+        box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
+      }
+
+      /* 相機容器優化 */
+      #preview-container {
+        position: relative;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto 20px;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        background: #000;
+      }
+
+      #video {
+        width: 100%;
+        height: auto;
+        display: block;
+        min-height: 300px;
+      }
+
+      .overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
       /* AR標記樣式 */
       .ar-canvas {
         position: absolute;
@@ -433,15 +563,196 @@
         font-size: 12px;
         opacity: 0.9;
       }
+
+      .coord-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .coord-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        font-size: 10px;
+        opacity: 0.7;
+      }
+
+      .source {
+        background: rgba(255,255,255,0.2);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+
+      .confidence {
+        color: #FFD700;
+        font-weight: bold;
+      }
+
+      /* 表單優化 */
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+        color: #555;
+        font-size: 14px;
+      }
+
+      .form-group input,
+      .form-group select {
+        width: 100%;
+        padding: 15px;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        font-size: 16px;
+        transition: border-color 0.3s ease;
+        background: #fff;
+        min-height: 50px;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus {
+        outline: none;
+        border-color: #4CAF50;
+        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+      }
+
+      .form-group input:invalid {
+        border-color: #f44336;
+      }
+
+      .form-group input:valid {
+        border-color: #4CAF50;
+      }
+
+      /* 狀態提示優化 */
+      .status {
+        padding: 15px;
+        border-radius: 10px;
+        margin: 15px 0;
+        text-align: center;
+        font-weight: bold;
+        font-size: 14px;
+      }
+
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      /* 掃描列表優化 */
+      .scanned-list {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+      }
+
+      .scanned-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px;
+        margin: 8px 0;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+
+      .remove-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+        min-width: 40px;
+        min-height: 40px;
+      }
+
+      .remove-btn:hover {
+        background: #c82333;
+      }
+
+      .remove-btn:active {
+        transform: scale(0.95);
+      }
+
+      /* 響應式設計 */
+      @media (max-width: 768px) {
+        .container {
+          padding: 5px;
+        }
+        
+        .card {
+          padding: 15px;
+          margin-bottom: 10px;
+        }
+        
+        .header h1 {
+          font-size: 1.5rem;
+        }
+        
+        .btn {
+          font-size: 16px;
+          padding: 12px 20px;
+        }
+        
+        .form-group input,
+        .form-group select {
+          font-size: 16px; /* 防止iOS縮放 */
+        }
+      }
+
+      @media (max-width: 480px) {
+        .header h1 {
+          font-size: 1.3rem;
+        }
+        
+        .card h2 {
+          font-size: 1.1rem;
+        }
+        
+        .btn {
+          font-size: 15px;
+          padding: 10px 15px;
+        }
+      }
       
     </style>
   </head>
   <body>
     <main class="container">
-      <h1>產品掃描與紀錄</h1>
+      <div class="header">
+        <h1>🎯 3D座標掃描系統</h1>
+        <p>簡單直覺的QR碼掃描與3D座標記錄</p>
+      </div>
 
       <section class="card">
-        <h2>掃描 QR 碼</h2>
+        <h2>📱 QR碼掃描</h2>
         <div id="preview-container">
           <video id="video" playsinline muted></video>
           <canvas id="overlay" class="overlay"></canvas>
@@ -456,10 +767,10 @@
             </div>
           </div>
         </div>
-        <div class="row">
-          <button id="startScan">開始掃描</button>
-          <button id="stopScan" disabled>停止掃描</button>
-          <button id="clearAll" type="button">清除所有</button>
+        <div class="controls">
+          <button id="startScan" class="btn">📱 開始掃描</button>
+          <button id="stopScan" class="btn stop" disabled>⏹️ 停止掃描</button>
+          <button id="clearAll" class="btn clear" type="button">🗑️ 清除所有</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
         <div class="hint" style="color: #4CAF50; font-weight: bold;">
@@ -529,53 +840,53 @@
       </section>
 
       <section class="card">
-        <h2>輸入資料</h2>
+        <h2>📝 資料輸入</h2>
         <form id="recordForm">
-          <label>
-            重工地點
+          <div class="form-group">
+            <label>重工地點</label>
             <select id="reworkType" required onchange="updateProductOptions()">
               <option value="">請選擇重工地點</option>
               <option value="廠內重工">廠內重工</option>
               <option value="廠外重工">廠外重工</option>
             </select>
-          </label>
+          </div>
 
-          <label>
-            產品名稱
+          <div class="form-group">
+            <label>產品名稱</label>
             <select id="productName" required disabled>
               <option value="">請先選擇重工地點</option>
             </select>
-          </label>
-
-          <label>
-            效期
-            <input type="date" id="expiryDate" required />
-          </label>
-
-          <label>
-            批號（自動帶入）
-            <input type="text" id="batchNumber" required readonly />
-          </label>
-
-          <label>
-            QR 內容（唯一本盒）
-            <input type="text" id="qrText" required readonly />
-          </label>
-          
-          <label>
-            批量掃描模式
-            <input type="checkbox" id="batchMode" onchange="toggleBatchMode()" checked />
-            <span class="small">✅ 已啟用：可同時掃描多個QR碼（推薦）</span>
-          </label>
-
-          <label>
-            填寫人員
-            <input type="text" id="staffName" required placeholder="請輸入填寫人員姓名" />
-          </label>
-
-          <div class="row">
-            <button type="submit" id="submitBtn">送出到試算表</button>
           </div>
+
+          <div class="form-group">
+            <label>效期</label>
+            <input type="date" id="expiryDate" required />
+          </div>
+
+          <div class="form-group">
+            <label>批號（自動帶入）</label>
+            <input type="text" id="batchNumber" required readonly />
+          </div>
+
+          <div class="form-group">
+            <label>QR 內容（唯一本盒）</label>
+            <input type="text" id="qrText" required readonly />
+          </div>
+          
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="batchMode" onchange="toggleBatchMode()" checked />
+              批量掃描模式
+            </label>
+            <small>✅ 已啟用：可同時掃描多個QR碼（推薦）</small>
+          </div>
+
+          <div class="form-group">
+            <label>填寫人員</label>
+            <input type="text" id="staffName" required placeholder="請輸入填寫人員姓名" />
+          </div>
+
+          <button type="submit" id="submitBtn" class="btn">📤 送出到試算表</button>
           <div id="status" class="status"></div>
         </form>
       </section>
@@ -643,6 +954,7 @@
       
       // 3D座標系統
       let coordinates3D = new Map(); // 儲存3D座標
+      let deviceMotion = null; // 設備運動感測器
       
       // 3D座標類別
       class Coordinate3D {
@@ -652,6 +964,8 @@
           this.z = z;
           this.timestamp = timestamp;
           this.id = `coord_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+          this.confidence = 1.0;
+          this.source = 'ARKit';
         }
 
         getDistance() {
@@ -663,26 +977,258 @@
         }
       }
       
-      // 生成3D座標（模擬真實3D定位）
-      function generate3DCoordinates(qrCode) {
-        // 模擬3D座標生成
-        const baseX = Math.random() * 10 - 5; // -5 到 5
-        const baseY = Math.random() * 10 - 5;
-        const baseZ = Math.random() * 5 + 1; // 1 到 6
+      // 初始化蘋果原生AR功能
+      async function initAppleAR() {
+        try {
+          // 檢查WebXR支援
+          if ('xr' in navigator) {
+            isARSupported = await navigator.xr.isSessionSupported('immersive-ar');
+            if (isARSupported) {
+              console.log('✅ 蘋果原生AR支援已啟用');
+              setStatus('🍎 蘋果原生AR功能已啟用，支援真實3D座標', 'success');
+              return true;
+            }
+          }
+          
+          // 檢查ARKit支援
+          if (window.ARKit) {
+            console.log('✅ ARKit支援已啟用');
+            setStatus('🍎 ARKit功能已啟用，支援真實3D座標', 'success');
+            return true;
+          }
+          
+          // 降級到設備感測器
+          if (window.DeviceMotionEvent) {
+            console.log('✅ 設備感測器AR支援已啟用');
+            setStatus('📱 設備感測器AR功能已啟用', 'info');
+            return true;
+          }
+          
+          console.log('❌ AR功能不支援，使用模擬3D座標');
+          setStatus('⚠️ AR功能不支援，使用模擬3D座標', 'warning');
+          return false;
+          
+        } catch (error) {
+          console.error('AR初始化失敗:', error);
+          setStatus('❌ AR初始化失敗，使用模擬3D座標', 'error');
+          return false;
+        }
+      }
+      
+      // 使用蘋果原生AR獲取真實3D座標
+      async function getReal3DCoordinates(qrCode, position, size) {
+        try {
+          // 方法1: 使用WebXR AR
+          if (isARSupported && 'xr' in navigator) {
+            return await getWebXR3DCoordinates(qrCode, position, size);
+          }
+          
+          // 方法2: 使用ARKit
+          if (window.ARKit) {
+            return await getARKit3DCoordinates(qrCode, position, size);
+          }
+          
+          // 方法3: 使用設備感測器
+          if (window.DeviceMotionEvent) {
+            return await getDeviceMotion3DCoordinates(qrCode, position, size);
+          }
+          
+          // 降級到模擬座標
+          return generateSimulated3DCoordinates(qrCode);
+          
+        } catch (error) {
+          console.error('獲取3D座標失敗:', error);
+          return generateSimulated3DCoordinates(qrCode);
+        }
+      }
+      
+      // WebXR AR 3D座標獲取
+      async function getWebXR3DCoordinates(qrCode, position, size) {
+        try {
+          if (!arSession) {
+            arSession = await navigator.xr.requestSession('immersive-ar', {
+              requiredFeatures: ['local', 'hit-test'],
+              optionalFeatures: ['anchors', 'plane-detection', 'depth-sensing']
+            });
+          }
+          
+          const referenceSpace = await arSession.requestReferenceSpace('local');
+          const hitTestSource = await arSession.requestHitTestSource({ space: referenceSpace });
+          
+          // 計算QR碼中心點
+          const centerX = position.x + size.width / 2;
+          const centerY = position.y + size.height / 2;
+          
+          // 轉換為歸一化設備座標
+          const video = document.getElementById('video');
+          const normalizedX = (centerX / video.videoWidth) * 2 - 1;
+          const normalizedY = -((centerY / video.videoHeight) * 2 - 1);
+          
+          // 創建射線進行hit-test
+          const ray = new XRRay(
+            new DOMPoint(0, 0, 0),
+            new DOMPoint(normalizedX, normalizedY, -1)
+          );
+          
+          const hitTestResults = await hitTestSource.requestHitTest(ray, referenceSpace);
+          
+          if (hitTestResults && hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(referenceSpace);
+            
+            if (pose) {
+              const transform = pose.transform;
+              const position3D = transform.position;
+              
+              return new Coordinate3D(
+                position3D.x,
+                position3D.y,
+                position3D.z
+              );
+            }
+          }
+          
+          throw new Error('WebXR hit-test失敗');
+          
+        } catch (error) {
+          console.error('WebXR 3D座標獲取失敗:', error);
+          throw error;
+        }
+      }
+      
+      // ARKit 3D座標獲取
+      async function getARKit3DCoordinates(qrCode, position, size) {
+        try {
+          // 使用ARKit的world tracking
+          const arkitSession = await window.ARKit.requestSession({
+            trackingType: 'world-tracking',
+            planeDetection: true,
+            lightEstimation: true
+          });
+          
+          // 獲取相機位置和方向
+          const cameraTransform = await arkitSession.getCameraTransform();
+          const cameraPosition = cameraTransform.position;
+          const cameraRotation = cameraTransform.rotation;
+          
+          // 計算QR碼在3D空間中的位置
+          const centerX = position.x + size.width / 2;
+          const centerY = position.y + size.height / 2;
+          
+          // 使用ARKit的hit-test
+          const hitTestResult = await arkitSession.hitTest(centerX, centerY);
+          
+          if (hitTestResult && hitTestResult.length > 0) {
+            const hit = hitTestResult[0];
+            return new Coordinate3D(
+              hit.worldTransform.position.x,
+              hit.worldTransform.position.y,
+              hit.worldTransform.position.z
+            );
+          }
+          
+          throw new Error('ARKit hit-test失敗');
+          
+        } catch (error) {
+          console.error('ARKit 3D座標獲取失敗:', error);
+          throw error;
+        }
+      }
+      
+      // 設備感測器3D座標獲取
+      async function getDeviceMotion3DCoordinates(qrCode, position, size) {
+        return new Promise((resolve) => {
+          // 請求設備方向權限
+          if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission().then(permission => {
+              if (permission === 'granted') {
+                startDeviceMotionTracking(qrCode, position, size, resolve);
+              } else {
+                resolve(generateSimulated3DCoordinates(qrCode));
+              }
+            });
+          } else {
+            startDeviceMotionTracking(qrCode, position, size, resolve);
+          }
+        });
+      }
+      
+      // 開始設備運動追蹤
+      function startDeviceMotionTracking(qrCode, position, size, resolve) {
+        const handleMotion = (event) => {
+          // 獲取設備方向
+          const alpha = event.alpha || 0; // Z軸旋轉
+          const beta = event.beta || 0;   // X軸旋轉
+          const gamma = event.gamma || 0; // Y軸旋轉
+          
+          // 計算QR碼在3D空間中的位置
+          const centerX = position.x + size.width / 2;
+          const centerY = position.y + size.height / 2;
+          
+          // 估算距離（基於QR碼大小）
+          const estimatedDistance = estimateDistanceFromQRSize(size);
+          
+          // 計算3D位置
+          const x3D = (centerX / window.innerWidth - 0.5) * estimatedDistance;
+          const y3D = -(centerY / window.innerHeight - 0.5) * estimatedDistance;
+          const z3D = estimatedDistance;
+          
+          // 應用設備旋轉
+          const rotatedX = x3D * Math.cos(alpha * Math.PI / 180) - y3D * Math.sin(alpha * Math.PI / 180);
+          const rotatedY = x3D * Math.sin(alpha * Math.PI / 180) + y3D * Math.cos(alpha * Math.PI / 180);
+          const rotatedZ = z3D * Math.cos(beta * Math.PI / 180);
+          
+          const coord3D = new Coordinate3D(rotatedX, rotatedY, rotatedZ);
+          coord3D.source = 'DeviceMotion';
+          coord3D.confidence = 0.8;
+          
+          // 移除事件監聽器
+          window.removeEventListener('devicemotion', handleMotion);
+          
+          resolve(coord3D);
+        };
         
-        // 添加一些基於QR碼的變化
+        // 添加事件監聽器
+        window.addEventListener('devicemotion', handleMotion, true);
+        
+        // 5秒後超時
+        setTimeout(() => {
+          window.removeEventListener('devicemotion', handleMotion);
+          resolve(generateSimulated3DCoordinates(qrCode));
+        }, 5000);
+      }
+      
+      // 根據QR碼大小估算距離
+      function estimateDistanceFromQRSize(size) {
+        const standardQRSize = 25; // mm
+        const standardDistance = 300; // mm
+        const screenSize = Math.max(size.width, size.height);
+        const estimatedDistance = (standardQRSize * standardDistance) / screenSize;
+        return Math.max(100, Math.min(2000, estimatedDistance)) / 1000; // 轉換為米
+      }
+      
+      // 生成模擬3D座標（降級方案）
+      function generateSimulated3DCoordinates(qrCode) {
+        const baseX = Math.random() * 10 - 5;
+        const baseY = Math.random() * 10 - 5;
+        const baseZ = Math.random() * 5 + 1;
+        
         const hash = qrCode.split('').reduce((a, b) => {
           a = ((a << 5) - a) + b.charCodeAt(0);
           return a & a;
         }, 0);
         
-        const variation = (hash % 100) / 1000; // 小變化
+        const variation = (hash % 100) / 1000;
         
-        return new Coordinate3D(
+        const coord3D = new Coordinate3D(
           baseX + variation,
           baseY + variation,
           baseZ + variation
         );
+        coord3D.source = 'Simulated';
+        coord3D.confidence = 0.5;
+        
+        return coord3D;
       }
 
       // 全域函數：更新產品選項
@@ -977,7 +1523,7 @@
             }
           };
 
-          // 建立新的 QR 掃描器，支援多QR碼識別和遠距離掃描
+          // 建立優化的 QR 掃描器，支援快速掃描和蘋果原生API
           qrScanner = new QrScanner(
             video,
             result => {
@@ -985,15 +1531,14 @@
             },
             {
               onDecodeError: (error) => {
-                // 解碼錯誤是正常的，不需要顯示
+                // 靜默處理解碼錯誤
                 console.debug('QR 解碼錯誤:', error);
               },
-              highlightScanRegion: false, // 關閉掃描區域高亮，避免干擾多QR碼識別
-              highlightCodeOutline: true, // 保留QR碼邊框高亮
-              preferredCamera: 'environment', // 優先使用後置鏡頭
-              maxScansPerSecond: 100, // 超高掃描頻率，極速識別多QR碼
+              highlightScanRegion: false,
+              highlightCodeOutline: true,
+              preferredCamera: 'environment',
+              maxScansPerSecond: 60, // 優化掃描頻率
               calculateScanRegion: function(video) {
-                // 使用全畫面掃描，支援多QR碼識別和超遠距離掃描
                 return {
                   x: 0,
                   y: 0,
@@ -1001,38 +1546,40 @@
                   height: video.videoHeight
                 };
               },
-              // 優化掃描參數，支援超遠距離識別
-              preferredResolution: { width: 4096, height: 2304 },
-              // 多QR碼快速識別優化
+              // 蘋果優化參數
+              preferredResolution: { width: 1920, height: 1080 },
+              // 快速掃描優化
               qrCodeDetector: {
-                minFeatureSize: 0.5, // 超低最小特徵尺寸，極高靈敏度
-                maxNumberOfFeatures: 50000, // 超高最大特徵數量
-                scanInterval: 5, // 超低掃描間隔，極速響應
-                minQRCodeSize: 3, // 支援極小QR碼識別
-                detectionThreshold: 0.01, // 超低檢測閾值，極高靈敏度
-                rotationTolerance: 180, // 支援任意角度旋轉
-                blurTolerance: 0.95, // 超高模糊容忍度
-                // 多QR碼優化
-                multiQRDetection: true, // 啟用多QR碼檢測
-                parallelProcessing: true, // 並行處理
-                // 極速識別優化
-                fastMode: true, // 快速模式
-                skipValidation: false, // 保持驗證
-                // 圖像處理優化
+                minFeatureSize: 1.0,
+                maxNumberOfFeatures: 10000,
+                scanInterval: 10,
+                minQRCodeSize: 5,
+                detectionThreshold: 0.1,
+                rotationTolerance: 45,
+                blurTolerance: 0.8,
+                // 多QR碼支援
+                multiQRDetection: true,
+                parallelProcessing: true,
+                // 性能優化
+                fastMode: true,
+                skipValidation: false,
+                // 圖像處理
                 imageEnhancement: true,
-                contrastBoost: 1.5,
-                brightnessAdjust: 0.2,
-                // 新增靈敏度優化
-                edgeDetection: true, // 邊緣檢測
-                noiseReduction: false, // 關閉降噪以保持細節
-                sharpening: true, // 銳化處理
-                adaptiveThreshold: true // 自適應閾值
+                contrastBoost: 1.2,
+                brightnessAdjust: 0.1,
+                edgeDetection: true,
+                noiseReduction: true,
+                sharpening: true,
+                adaptiveThreshold: true
               }
             }
           );
 
           // 啟動掃描器
           await qrScanner.start();
+          
+          // 初始化蘋果原生AR功能
+          await initAppleAR();
           
           // 初始化AR標記系統
           await initARMarkers();
@@ -1101,12 +1648,29 @@
         // 記錄已掃描的 QR 碼（使用完整數字）
         scannedQRs.add(qrNumber);
         
-        // 生成3D座標
-        const coord3D = generate3DCoordinates(qrNumber);
-        coordinates3D.set(qrNumber, coord3D);
+        // 獲取真實3D座標
+        const position = result.location ? {
+          x: Math.min(result.location.topLeftCorner.x, result.location.bottomLeftCorner.x),
+          y: Math.min(result.location.topLeftCorner.y, result.location.topRightCorner.y)
+        } : { x: 0, y: 0 };
         
-        // 更新3D座標顯示
-        updateCoordinatesDisplay();
+        const size = result.location ? {
+          width: Math.abs(result.location.topRightCorner.x - result.location.topLeftCorner.x),
+          height: Math.abs(result.location.bottomLeftCorner.y - result.location.topLeftCorner.y)
+        } : { width: 100, height: 100 };
+        
+        // 異步獲取真實3D座標
+        getReal3DCoordinates(qrNumber, position, size).then(coord3D => {
+          coordinates3D.set(qrNumber, coord3D);
+          updateCoordinatesDisplay();
+          console.log(`✅ 3D座標已記錄: ${qrNumber} -> ${coord3D.toString()} (來源: ${coord3D.source})`);
+        }).catch(error => {
+          console.error('3D座標獲取失敗:', error);
+          // 使用模擬座標作為備用
+          const fallbackCoord = generateSimulated3DCoordinates(qrNumber);
+          coordinates3D.set(qrNumber, fallbackCoord);
+          updateCoordinatesDisplay();
+        });
         
         // 更新掃描統計
         updateScanStats();
@@ -1175,9 +1739,7 @@
       }
 
       // AR標記管理器
-      let arSession = null;
       let arMarkers = new Map(); // 儲存AR標記位置
-      let isARSupported = false;
 
       // 初始化AR功能（自動啟用）
       async function initAR() {
@@ -1454,10 +2016,21 @@
         
         let html = '';
         coordinates3D.forEach((coord, qrCode) => {
+          const sourceIcon = coord.source === 'ARKit' ? '🍎' : 
+                           coord.source === 'WebXR' ? '🌐' : 
+                           coord.source === 'DeviceMotion' ? '📱' : '🎲';
+          const confidence = (coord.confidence * 100).toFixed(0);
+          
           html += `
             <div class="coord-item">
-              <span class="qr-code">QR碼: ${qrCode}</span>
-              <span class="coordinates">${coord.toString()}</span>
+              <div class="coord-info">
+                <span class="qr-code">${sourceIcon} QR碼: ${qrCode}</span>
+                <span class="coordinates">${coord.toString()}</span>
+              </div>
+              <div class="coord-meta">
+                <span class="source">${coord.source}</span>
+                <span class="confidence">${confidence}%</span>
+              </div>
             </div>
           `;
         });
