@@ -3,8 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>產品掃描與紀錄</title>
-    <link rel="stylesheet" href="styles.css" />
+    <title>3D座標掃描系統</title>
     <style>
       /* AR標記樣式 */
       .ar-canvas {
@@ -374,6 +373,67 @@
         }
       }
       
+      /* 3D座標顯示樣式 */
+      .coordinates-3d {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
+      }
+      
+      .coordinates-3d h4 {
+        margin-bottom: 10px;
+        text-align: center;
+      }
+      
+      .coords-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      
+      .coord-3d {
+        text-align: center;
+        background: rgba(255,255,255,0.1);
+        padding: 10px;
+        border-radius: 8px;
+      }
+      
+      .coord-3d .label {
+        font-size: 12px;
+        opacity: 0.8;
+        margin-bottom: 4px;
+      }
+      
+      .coord-3d .value {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: 'Courier New', monospace;
+      }
+      
+      .coord-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px;
+        margin: 4px 0;
+        background: rgba(255,255,255,0.1);
+        border-radius: 6px;
+      }
+      
+      .coord-item .qr-code {
+        font-weight: bold;
+        color: #FFD700;
+      }
+      
+      .coord-item .coordinates {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        opacity: 0.9;
+      }
+      
     </style>
   </head>
   <body>
@@ -399,22 +459,7 @@
         <div class="row">
           <button id="startScan">開始掃描</button>
           <button id="stopScan" disabled>停止掃描</button>
-          <button id="manualQR" type="button">手動輸入 QR</button>
-        </div>
-        <div class="row">
-          <button id="clearMarkers" type="button">清除所有標記</button>
-          <button id="refocusBtn" type="button" style="background: linear-gradient(45deg, #FF9800, #F57C00); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔍 重新對焦</button>
-        </div>
-        <div class="row">
-          <button id="multiScanBtn" type="button" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; margin: 5px; cursor: pointer; transition: all 0.3s ease; font-size: 16px;">📱 多QR碼掃描模式</button>
-          <button id="testARBtn" type="button" style="background: linear-gradient(45deg, #FF9800, #F57C00); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🧪 測試AR標記</button>
-          <button id="simpleTestBtn" type="button" style="background: linear-gradient(45deg, #E91E63, #C2185B); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🎯 簡單測試</button>
-        </div>
-        <div class="row">
-          <button id="checkARBtn" type="button" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔍 檢查AR狀態</button>
-          <button id="initARBtn" type="button" style="background: linear-gradient(45deg, #607D8B, #455A64); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🔧 手動初始化AR</button>
-          <button id="startWebXRBtn" type="button" style="background: linear-gradient(45deg, #FF6B6B, #E53E3E); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">🍎 啟動WebXR AR</button>
-          <button id="test3DCoordsBtn" type="button" style="background: linear-gradient(45deg, #00BCD4, #0097A7); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin: 3px; cursor: pointer; transition: all 0.3s ease; font-size: 14px;">📐 測試3D座標</button>
+          <button id="clearAll" type="button">清除所有</button>
         </div>
         <div class="hint">若無法開啟鏡頭，請確認瀏覽器權限或改用 Safari。</div>
         <div class="hint" style="color: #4CAF50; font-weight: bold;">
@@ -448,6 +493,14 @@
         <div id="scanOrderSection" class="scan-order-section" style="display: none;">
           <h4>📋 掃描順序</h4>
           <div id="scanOrderList" class="scan-order-list"></div>
+        </div>
+
+        <!-- 3D座標顯示區域 -->
+        <div id="coordinates3D" class="coordinates-3d" style="display: none;">
+          <h4>📍 3D座標記錄</h4>
+          <div id="coordinatesList">
+            <p class="small">尚未掃描任何 QR 碼</p>
+          </div>
         </div>
 
         <!-- 掃描記錄區域 -->
@@ -587,6 +640,50 @@
       let scanCounter = 0; // 掃描計數器
       let arScene = null; // AR場景
       let arMarkerElements = new Map(); // AR標記實例
+      
+      // 3D座標系統
+      let coordinates3D = new Map(); // 儲存3D座標
+      
+      // 3D座標類別
+      class Coordinate3D {
+        constructor(x, y, z, timestamp = Date.now()) {
+          this.x = x;
+          this.y = y;
+          this.z = z;
+          this.timestamp = timestamp;
+          this.id = `coord_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+
+        getDistance() {
+          return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+        }
+
+        toString() {
+          return `(${this.x.toFixed(3)}, ${this.y.toFixed(3)}, ${this.z.toFixed(3)})`;
+        }
+      }
+      
+      // 生成3D座標（模擬真實3D定位）
+      function generate3DCoordinates(qrCode) {
+        // 模擬3D座標生成
+        const baseX = Math.random() * 10 - 5; // -5 到 5
+        const baseY = Math.random() * 10 - 5;
+        const baseZ = Math.random() * 5 + 1; // 1 到 6
+        
+        // 添加一些基於QR碼的變化
+        const hash = qrCode.split('').reduce((a, b) => {
+          a = ((a << 5) - a) + b.charCodeAt(0);
+          return a & a;
+        }, 0);
+        
+        const variation = (hash % 100) / 1000; // 小變化
+        
+        return new Coordinate3D(
+          baseX + variation,
+          baseY + variation,
+          baseZ + variation
+        );
+      }
 
       // 全域函數：更新產品選項
       function updateProductOptions() {
@@ -1004,6 +1101,13 @@
         // 記錄已掃描的 QR 碼（使用完整數字）
         scannedQRs.add(qrNumber);
         
+        // 生成3D座標
+        const coord3D = generate3DCoordinates(qrNumber);
+        coordinates3D.set(qrNumber, coord3D);
+        
+        // 更新3D座標顯示
+        updateCoordinatesDisplay();
+        
         // 更新掃描統計
         updateScanStats();
         
@@ -1335,6 +1439,32 @@
         }
       }
 
+      // 更新3D座標顯示
+      function updateCoordinatesDisplay() {
+        const coordinates3DEl = document.getElementById('coordinates3D');
+        const listEl = document.getElementById('coordinatesList');
+        
+        if (coordinates3D.size === 0) {
+          coordinates3DEl.style.display = 'none';
+          listEl.innerHTML = '<p class="small">尚未掃描任何 QR 碼</p>';
+          return;
+        }
+
+        coordinates3DEl.style.display = 'block';
+        
+        let html = '';
+        coordinates3D.forEach((coord, qrCode) => {
+          html += `
+            <div class="coord-item">
+              <span class="qr-code">QR碼: ${qrCode}</span>
+              <span class="coordinates">${coord.toString()}</span>
+            </div>
+          `;
+        });
+
+        listEl.innerHTML = html;
+      }
+
       // 更新掃描記錄列表
       function updateScannedList() {
         const listContainer = document.getElementById('scannedList');
@@ -1366,7 +1496,9 @@
       // 移除 QR 碼
       function removeQR(qrNumber) {
         scannedQRs.delete(qrNumber);
+        coordinates3D.delete(qrNumber);
         updateScannedList();
+        updateCoordinatesDisplay();
         
         // 如果移除的是當前 QR 內容，清空欄位
         if (document.getElementById('qrText').value === qrNumber) {
@@ -1382,9 +1514,11 @@
       // 清空所有掃描記錄
       function clearAllQRs() {
         scannedQRs.clear();
+        coordinates3D.clear();
         clearARMarkers(); // 清除AR標記
         document.getElementById('qrText').value = '';
         updateScannedList();
+        updateCoordinatesDisplay();
         
         // 重置統計數據
         scanStats = {
@@ -2972,66 +3106,10 @@
           manualQRBtn.addEventListener('click', manualQRInput);
         }
 
-        // 清除標記按鈕
-        const clearMarkersBtn = document.getElementById('clearMarkers');
-        if (clearMarkersBtn) {
-          clearMarkersBtn.addEventListener('click', clearAllMarkers);
-        }
-
-        // 重新對焦按鈕
-        const refocusBtn = document.getElementById('refocusBtn');
-        if (refocusBtn) {
-          refocusBtn.addEventListener('click', async () => {
-            if (qrScanner && qrScanner._active) {
-              setStatus('正在重新對焦，請稍候...', 'info');
-              await optimizeAutoFocus();
-              setStatus('對焦完成，請重新嘗試掃描', 'success');
-            } else {
-              setStatus('請先啟動掃描器', 'warning');
-            }
-          });
-        }
-
-        // 多QR碼掃描模式按鈕
-        const multiScanBtn = document.getElementById('multiScanBtn');
-        if (multiScanBtn) {
-          multiScanBtn.addEventListener('click', toggleMultiScanMode);
-        }
-
-        // 測試AR標記按鈕
-        const testARBtn = document.getElementById('testARBtn');
-        if (testARBtn) {
-          testARBtn.addEventListener('click', testARMarkers);
-        }
-
-        // 簡單測試按鈕
-        const simpleTestBtn = document.getElementById('simpleTestBtn');
-        if (simpleTestBtn) {
-          simpleTestBtn.addEventListener('click', simpleTestAR);
-        }
-
-        // 檢查AR狀態按鈕
-        const checkARBtn = document.getElementById('checkARBtn');
-        if (checkARBtn) {
-          checkARBtn.addEventListener('click', checkARStatus);
-        }
-
-        // 手動初始化AR按鈕
-        const initARBtn = document.getElementById('initARBtn');
-        if (initARBtn) {
-          initARBtn.addEventListener('click', manualInitAR);
-        }
-
-        // 啟動WebXR AR按鈕
-        const startWebXRBtn = document.getElementById('startWebXRBtn');
-        if (startWebXRBtn) {
-          startWebXRBtn.addEventListener('click', startWebXRSession);
-        }
-
-        // 測試3D座標按鈕
-        const test3DCoordsBtn = document.getElementById('test3DCoordsBtn');
-        if (test3DCoordsBtn) {
-          test3DCoordsBtn.addEventListener('click', test3DCoordinates);
+        // 清除所有按鈕
+        const clearAllBtn = document.getElementById('clearAll');
+        if (clearAllBtn) {
+          clearAllBtn.addEventListener('click', clearAllQRs);
         }
 
         // 初始化多QR碼掃描模式
