@@ -344,6 +344,51 @@
         }
       }
       
+      /* 持久性AR標誌動畫 */
+      @keyframes persistentARKitPulse {
+        0%, 100% {
+          transform: translate(-50%, -50%) scale(1);
+          box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.1);
+          box-shadow: 0 0 30px rgba(255, 215, 0, 1);
+        }
+      }
+      
+      @keyframes persistentWebXRPulse {
+        0%, 100% {
+          transform: translate(-50%, -50%) scale(1);
+          box-shadow: 0 0 15px rgba(76, 175, 80, 0.6);
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.05);
+          box-shadow: 0 0 25px rgba(76, 175, 80, 0.8);
+        }
+      }
+      
+      @keyframes persistentDeviceMotionPulse {
+        0%, 100% {
+          transform: translate(-50%, -50%) scale(1);
+          box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.05);
+          box-shadow: 0 0 20px rgba(255, 152, 0, 0.7);
+        }
+      }
+      
+      @keyframes persistentSimulatedPulse {
+        0%, 100% {
+          transform: translate(-50%, -50%) scale(1);
+          box-shadow: 0 0 8px rgba(158, 158, 158, 0.4);
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.05);
+          box-shadow: 0 0 15px rgba(158, 158, 158, 0.6);
+        }
+      }
+      
       .ar-marker {
         position: absolute;
         pointer-events: none;
@@ -1276,169 +1321,387 @@
         return coord3D;
       }
       
-      // 基於3D座標創建AR標誌
-      function createARMarkerFrom3DCoord(qrCode, coord3D, position, size) {
+      // 持久性AR錨點系統
+      let persistentAnchors = new Map(); // 儲存持久性錨點
+      let worldTracking = null; // 世界追蹤系統
+      
+      // 初始化持久性AR錨點系統
+      async function initPersistentARAnchors() {
+        try {
+          // 檢查WebXR支援
+          if ('xr' in navigator) {
+            const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+            if (isSupported) {
+              console.log('✅ 持久性AR錨點系統已啟用');
+              setStatus('🔒 持久性AR錨點已啟用，標誌將固定在現實世界中', 'success');
+              return true;
+            }
+          }
+          
+          // 檢查ARKit支援
+          if (window.ARKit) {
+            console.log('✅ ARKit持久性錨點系統已啟用');
+            setStatus('🔒 ARKit持久性錨點已啟用', 'success');
+            return true;
+          }
+          
+          console.log('⚠️ 持久性AR錨點不支援，使用相對位置標記');
+          setStatus('⚠️ 持久性AR錨點不支援，使用相對位置標記', 'warning');
+          return false;
+          
+        } catch (error) {
+          console.error('持久性AR錨點初始化失敗:', error);
+          setStatus('❌ 持久性AR錨點初始化失敗', 'error');
+          return false;
+        }
+      }
+      
+      // 創建持久性AR錨點
+      async function createPersistentARAnchor(qrCode, coord3D, position, size) {
+        try {
+          // 方法1: 使用WebXR持久性錨點
+          if ('xr' in navigator && isARSupported) {
+            return await createWebXRPersistentAnchor(qrCode, coord3D, position, size);
+          }
+          
+          // 方法2: 使用ARKit持久性錨點
+          if (window.ARKit) {
+            return await createARKitPersistentAnchor(qrCode, coord3D, position, size);
+          }
+          
+          // 方法3: 使用設備感測器持久性錨點
+          if (window.DeviceMotionEvent) {
+            return await createDeviceMotionPersistentAnchor(qrCode, coord3D, position, size);
+          }
+          
+          // 降級到相對位置標記
+          return await createRelativePositionMarker(qrCode, coord3D, position, size);
+          
+        } catch (error) {
+          console.error('創建持久性AR錨點失敗:', error);
+          return await createRelativePositionMarker(qrCode, coord3D, position, size);
+        }
+      }
+      
+      // WebXR持久性錨點
+      async function createWebXRPersistentAnchor(qrCode, coord3D, position, size) {
+        try {
+          if (!arSession) {
+            arSession = await navigator.xr.requestSession('immersive-ar', {
+              requiredFeatures: ['local', 'hit-test', 'anchors'],
+              optionalFeatures: ['plane-detection', 'depth-sensing']
+            });
+          }
+          
+          const referenceSpace = await arSession.requestReferenceSpace('local');
+          const hitTestSource = await arSession.requestHitTestSource({ space: referenceSpace });
+          
+          // 計算QR碼中心點
+          const centerX = position.x + size.width / 2;
+          const centerY = position.y + size.height / 2;
+          
+          // 轉換為歸一化設備座標
+          const video = document.getElementById('video');
+          const normalizedX = (centerX / video.videoWidth) * 2 - 1;
+          const normalizedY = -((centerY / video.videoHeight) * 2 - 1);
+          
+          // 創建射線進行hit-test
+          const ray = new XRRay(
+            new DOMPoint(0, 0, 0),
+            new DOMPoint(normalizedX, normalizedY, -1)
+          );
+          
+          const hitTestResults = await hitTestSource.requestHitTest(ray, referenceSpace);
+          
+          if (hitTestResults && hitTestResults.length > 0) {
+            const hit = hitTestResults[0];
+            const pose = hit.getPose(referenceSpace);
+            
+            if (pose) {
+              // 創建持久性錨點
+              const anchor = await arSession.createAnchor(pose.transform, referenceSpace);
+              
+              // 創建AR標誌元素
+              const arMarker = createPersistentARMarker(qrCode, coord3D, anchor);
+              
+              // 儲存持久性錨點
+              persistentAnchors.set(qrCode, {
+                anchor: anchor,
+                element: arMarker,
+                coord3D: coord3D,
+                position: pose.transform.position,
+                orientation: pose.transform.orientation,
+                timestamp: Date.now()
+              });
+              
+              console.log(`🔒 WebXR持久性錨點已創建: ${qrCode}`);
+              return arMarker;
+            }
+          }
+          
+          throw new Error('WebXR hit-test失敗');
+          
+        } catch (error) {
+          console.error('WebXR持久性錨點創建失敗:', error);
+          throw error;
+        }
+      }
+      
+      // ARKit持久性錨點
+      async function createARKitPersistentAnchor(qrCode, coord3D, position, size) {
+        try {
+          if (!window.ARKit) {
+            throw new Error('ARKit不支援');
+          }
+          
+          // 使用ARKit創建持久性錨點
+          const arkitSession = await window.ARKit.requestSession({
+            trackingType: 'world-tracking',
+            planeDetection: true,
+            lightEstimation: true
+          });
+          
+          // 獲取相機變換
+          const cameraTransform = await arkitSession.getCameraTransform();
+          
+          // 計算QR碼在3D空間中的位置
+          const centerX = position.x + size.width / 2;
+          const centerY = position.y + size.height / 2;
+          
+          // 使用ARKit的hit-test
+          const hitTestResult = await arkitSession.hitTest(centerX, centerY);
+          
+          if (hitTestResult && hitTestResult.length > 0) {
+            const hit = hitTestResult[0];
+            
+            // 創建ARKit持久性錨點
+            const anchor = await arkitSession.createAnchor(hit.worldTransform);
+            
+            // 創建AR標誌元素
+            const arMarker = createPersistentARMarker(qrCode, coord3D, anchor);
+            
+            // 儲存持久性錨點
+            persistentAnchors.set(qrCode, {
+              anchor: anchor,
+              element: arMarker,
+              coord3D: coord3D,
+              position: hit.worldTransform.position,
+              orientation: hit.worldTransform.orientation,
+              timestamp: Date.now()
+            });
+            
+            console.log(`🔒 ARKit持久性錨點已創建: ${qrCode}`);
+            return arMarker;
+          }
+          
+          throw new Error('ARKit hit-test失敗');
+          
+        } catch (error) {
+          console.error('ARKit持久性錨點創建失敗:', error);
+          throw error;
+        }
+      }
+      
+      // 設備感測器持久性錨點
+      async function createDeviceMotionPersistentAnchor(qrCode, coord3D, position, size) {
+        try {
+          // 請求設備方向權限
+          if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission !== 'granted') {
+              throw new Error('設備方向權限被拒絕');
+            }
+          }
+          
+          // 創建基於設備感測器的持久性錨點
+          const anchor = {
+            id: `anchor_${qrCode}_${Date.now()}`,
+            position: coord3D,
+            timestamp: Date.now(),
+            type: 'DeviceMotion'
+          };
+          
+          // 創建AR標誌元素
+          const arMarker = createPersistentARMarker(qrCode, coord3D, anchor);
+          
+          // 儲存持久性錨點
+          persistentAnchors.set(qrCode, {
+            anchor: anchor,
+            element: arMarker,
+            coord3D: coord3D,
+            position: coord3D,
+            orientation: { x: 0, y: 0, z: 0, w: 1 },
+            timestamp: Date.now()
+          });
+          
+          console.log(`🔒 設備感測器持久性錨點已創建: ${qrCode}`);
+          return arMarker;
+          
+        } catch (error) {
+          console.error('設備感測器持久性錨點創建失敗:', error);
+          throw error;
+        }
+      }
+      
+      // 相對位置標記（降級方案）
+      async function createRelativePositionMarker(qrCode, coord3D, position, size) {
         try {
           // 計算QR碼中心點
           const centerX = position.x + size.width / 2;
           const centerY = position.y + size.height / 2;
           
-          // 根據3D座標的置信度調整標誌樣式
-          const confidence = coord3D.confidence;
-          const source = coord3D.source;
-          
           // 創建AR標誌元素
-          const arMarker = document.createElement('div');
-          arMarker.id = `ar-marker-3d-${qrCode}`;
-          arMarker.className = 'ar-marker-3d-coord';
+          const arMarker = createPersistentARMarker(qrCode, coord3D, null);
           
-          // 根據3D座標來源設定不同的視覺效果
-          let markerStyle = '';
-          let markerContent = '';
+          // 設定相對位置
+          arMarker.style.left = `${(centerX / window.innerWidth) * 100}%`;
+          arMarker.style.top = `${(centerY / window.innerHeight) * 100}%`;
           
-          if (source === 'ARKit') {
-            // ARKit - 最高精度，金色標誌
-            markerStyle = `
-              position: absolute;
-              left: ${(centerX / window.innerWidth) * 100}%;
-              top: ${(centerY / window.innerHeight) * 100}%;
-              transform: translate(-50%, -50%);
-              width: 80px;
-              height: 80px;
-              background: linear-gradient(135deg, #FFD700, #FFA500);
-              border: 3px solid #000;
-              border-radius: 50%;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
-              animation: arKitPulse 2s infinite;
-              z-index: 1000;
-              pointer-events: none;
-            `;
-            markerContent = `
-              <div style="font-size: 24px; font-weight: bold; color: #000;">✓</div>
-              <div style="font-size: 12px; font-weight: bold; color: #000;">${qrCode}</div>
-              <div style="font-size: 10px; color: #000; opacity: 0.8;">ARKit</div>
-            `;
-          } else if (source === 'WebXR') {
-            // WebXR - 標準精度，藍色標誌
-            markerStyle = `
-              position: absolute;
-              left: ${(centerX / window.innerWidth) * 100}%;
-              top: ${(centerY / window.innerHeight) * 100}%;
-              transform: translate(-50%, -50%);
-              width: 70px;
-              height: 70px;
-              background: linear-gradient(135deg, #4CAF50, #45a049);
-              border: 2px solid #fff;
-              border-radius: 50%;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 0 15px rgba(76, 175, 80, 0.6);
-              animation: webxrPulse 2s infinite;
-              z-index: 1000;
-              pointer-events: none;
-            `;
-            markerContent = `
-              <div style="font-size: 20px; font-weight: bold; color: #fff;">✓</div>
-              <div style="font-size: 11px; font-weight: bold; color: #fff;">${qrCode}</div>
-              <div style="font-size: 9px; color: #fff; opacity: 0.8;">WebXR</div>
-            `;
-          } else if (source === 'DeviceMotion') {
-            // DeviceMotion - 基礎精度，橙色標誌
-            markerStyle = `
-              position: absolute;
-              left: ${(centerX / window.innerWidth) * 100}%;
-              top: ${(centerY / window.innerHeight) * 100}%;
-              transform: translate(-50%, -50%);
-              width: 60px;
-              height: 60px;
-              background: linear-gradient(135deg, #FF9800, #F57C00);
-              border: 2px solid #fff;
-              border-radius: 50%;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
-              animation: deviceMotionPulse 2s infinite;
-              z-index: 1000;
-              pointer-events: none;
-            `;
-            markerContent = `
-              <div style="font-size: 18px; font-weight: bold; color: #fff;">✓</div>
-              <div style="font-size: 10px; font-weight: bold; color: #fff;">${qrCode}</div>
-              <div style="font-size: 8px; color: #fff; opacity: 0.8;">Motion</div>
-            `;
-          } else {
-            // Simulated - 模擬座標，灰色標誌
-            markerStyle = `
-              position: absolute;
-              left: ${(centerX / window.innerWidth) * 100}%;
-              top: ${(centerY / window.innerHeight) * 100}%;
-              transform: translate(-50%, -50%);
-              width: 50px;
-              height: 50px;
-              background: linear-gradient(135deg, #9E9E9E, #757575);
-              border: 2px solid #fff;
-              border-radius: 50%;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 0 8px rgba(158, 158, 158, 0.4);
-              animation: simulatedPulse 2s infinite;
-              z-index: 1000;
-              pointer-events: none;
-            `;
-            markerContent = `
-              <div style="font-size: 16px; font-weight: bold; color: #fff;">✓</div>
-              <div style="font-size: 9px; font-weight: bold; color: #fff;">${qrCode}</div>
-              <div style="font-size: 7px; color: #fff; opacity: 0.8;">Sim</div>
-            `;
-          }
+          // 儲存標記
+          persistentAnchors.set(qrCode, {
+            anchor: null,
+            element: arMarker,
+            coord3D: coord3D,
+            position: { x: centerX, y: centerY, z: 0 },
+            orientation: { x: 0, y: 0, z: 0, w: 1 },
+            timestamp: Date.now()
+          });
           
-          // 應用樣式
-          arMarker.style.cssText = markerStyle;
-          arMarker.innerHTML = markerContent;
-          
-          // 添加到相機容器
-          const previewContainer = document.getElementById('preview-container');
-          if (previewContainer) {
-            previewContainer.appendChild(arMarker);
-            
-            // 儲存標誌資訊
-            arMarkers.set(qrCode, {
-              element: arMarker,
-              coord3D: coord3D,
-              position: { x: centerX, y: centerY },
-              size: size,
-              timestamp: Date.now()
-            });
-            
-            console.log(`🎯 AR標誌已創建: ${qrCode} (來源: ${source}, 置信度: ${(confidence * 100).toFixed(0)}%)`);
-            
-            // 根據置信度調整透明度
-            if (confidence < 0.7) {
-              arMarker.style.opacity = '0.7';
-            }
-            
-            // 5秒後添加淡出效果
-            setTimeout(() => {
-              if (arMarker && arMarker.parentNode) {
-                arMarker.style.transition = 'opacity 2s ease-out';
-                arMarker.style.opacity = '0.8';
-              }
-            }, 5000);
-          }
+          console.log(`🔒 相對位置標記已創建: ${qrCode}`);
+          return arMarker;
           
         } catch (error) {
-          console.error('創建AR標誌失敗:', error);
+          console.error('相對位置標記創建失敗:', error);
+          throw error;
         }
+      }
+      
+      // 創建持久性AR標誌元素
+      function createPersistentARMarker(qrCode, coord3D, anchor) {
+        const arMarker = document.createElement('div');
+        arMarker.id = `persistent-ar-marker-${qrCode}`;
+        arMarker.className = 'persistent-ar-marker';
+        
+        // 根據座標來源設定樣式
+        const source = coord3D.source;
+        const confidence = coord3D.confidence;
+        
+        let markerStyle = '';
+        let markerContent = '';
+        
+        if (source === 'ARKit') {
+          // ARKit - 金色持久性標誌
+          markerStyle = `
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            border: 3px solid #000;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+            animation: persistentARKitPulse 2s infinite;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: ${confidence < 0.7 ? '0.7' : '1'};
+          `;
+          markerContent = `
+            <div style="font-size: 24px; font-weight: bold; color: #000;">✓</div>
+            <div style="font-size: 12px; font-weight: bold; color: #000;">${qrCode}</div>
+            <div style="font-size: 10px; color: #000; opacity: 0.8;">ARKit</div>
+          `;
+        } else if (source === 'WebXR') {
+          // WebXR - 綠色持久性標誌
+          markerStyle = `
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.6);
+            animation: persistentWebXRPulse 2s infinite;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: ${confidence < 0.7 ? '0.7' : '1'};
+          `;
+          markerContent = `
+            <div style="font-size: 20px; font-weight: bold; color: #fff;">✓</div>
+            <div style="font-size: 11px; font-weight: bold; color: #fff;">${qrCode}</div>
+            <div style="font-size: 9px; color: #fff; opacity: 0.8;">WebXR</div>
+          `;
+        } else if (source === 'DeviceMotion') {
+          // DeviceMotion - 橙色持久性標誌
+          markerStyle = `
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+            animation: persistentDeviceMotionPulse 2s infinite;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: ${confidence < 0.7 ? '0.7' : '1'};
+          `;
+          markerContent = `
+            <div style="font-size: 18px; font-weight: bold; color: #fff;">✓</div>
+            <div style="font-size: 10px; font-weight: bold; color: #fff;">${qrCode}</div>
+            <div style="font-size: 8px; color: #fff; opacity: 0.8;">Motion</div>
+          `;
+        } else {
+          // Simulated - 灰色持久性標誌
+          markerStyle = `
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #9E9E9E, #757575);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 8px rgba(158, 158, 158, 0.4);
+            animation: persistentSimulatedPulse 2s infinite;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: ${confidence < 0.7 ? '0.7' : '1'};
+          `;
+          markerContent = `
+            <div style="font-size: 16px; font-weight: bold; color: #fff;">✓</div>
+            <div style="font-size: 9px; font-weight: bold; color: #fff;">${qrCode}</div>
+            <div style="font-size: 7px; color: #fff; opacity: 0.8;">Sim</div>
+          `;
+        }
+        
+        // 應用樣式
+        arMarker.style.cssText = markerStyle;
+        arMarker.innerHTML = markerContent;
+        
+        // 添加到相機容器
+        const previewContainer = document.getElementById('preview-container');
+        if (previewContainer) {
+          previewContainer.appendChild(arMarker);
+        }
+        
+        return arMarker;
       }
 
       // 全域函數：更新產品選項
@@ -1791,6 +2054,9 @@
           // 初始化蘋果原生AR功能
           await initAppleAR();
           
+          // 初始化持久性AR錨點系統
+          await initPersistentARAnchors();
+          
           // 初始化AR標記系統
           await initARMarkers();
           console.log('AR標記系統已初始化');
@@ -1875,8 +2141,15 @@
           updateCoordinatesDisplay();
           console.log(`✅ 3D座標已記錄: ${qrNumber} -> ${coord3D.toString()} (來源: ${coord3D.source})`);
           
-          // 基於3D座標創建AR標誌
-          createARMarkerFrom3DCoord(qrNumber, coord3D, position, size);
+          // 創建持久性AR錨點
+          createPersistentARAnchor(qrNumber, coord3D, position, size).then(arMarker => {
+            console.log(`🔒 持久性AR錨點已創建: ${qrNumber}`);
+            setStatus(`🔒 AR標誌已固定在現實世界中: ${qrNumber}`, 'success');
+          }).catch(error => {
+            console.error('持久性AR錨點創建失敗:', error);
+            // 降級到相對位置標記
+            createARMarkerFrom3DCoord(qrNumber, coord3D, position, size);
+          });
         }).catch(error => {
           console.error('3D座標獲取失敗:', error);
           // 使用模擬座標作為備用
@@ -1884,8 +2157,14 @@
           coordinates3D.set(qrNumber, fallbackCoord);
           updateCoordinatesDisplay();
           
-          // 即使使用模擬座標也創建AR標誌
-          createARMarkerFrom3DCoord(qrNumber, fallbackCoord, position, size);
+          // 創建持久性AR錨點（即使使用模擬座標）
+          createPersistentARAnchor(qrNumber, fallbackCoord, position, size).then(arMarker => {
+            console.log(`🔒 持久性AR錨點已創建（模擬座標）: ${qrNumber}`);
+          }).catch(error => {
+            console.error('持久性AR錨點創建失敗:', error);
+            // 降級到相對位置標記
+            createARMarkerFrom3DCoord(qrNumber, fallbackCoord, position, size);
+          });
         });
         
         // 更新掃描統計
@@ -3282,6 +3561,14 @@
 
       // 清除AR標記
       function clearARMarkers() {
+        // 清除持久性AR錨點
+        persistentAnchors.forEach((anchorInfo, qrCode) => {
+          if (anchorInfo && anchorInfo.element && anchorInfo.element.parentNode) {
+            anchorInfo.element.parentNode.removeChild(anchorInfo.element);
+          }
+        });
+        persistentAnchors.clear();
+        
         // 清除3D座標AR標誌
         arMarkers.forEach((markerInfo, qrCode) => {
           if (markerInfo && markerInfo.element && markerInfo.element.parentNode) {
